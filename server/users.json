@@ -1,0 +1,20 @@
+[
+  {
+    "name": "deep",
+    "email": "deepdragon10@gmail.com",
+    "password": "12345678",
+    "role": "5"
+  },
+  {
+    "name": "Supplier",
+    "email": "deepdragoon10@gmail.com",
+    "password": "12345678",
+    "role": "1"
+  },
+    {
+    "name": "Manufacturer",
+    "email": "deepparulekar1812@gmail.com",
+    "password": "12345678",
+    "role": "2"
+  }
+]
