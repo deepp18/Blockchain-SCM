@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import Web3 from "web3";
 import SupplyChain from "../contracts/SupplyChain.json";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
 
 function Dashboard() {
   const [account, setAccount] = useState("");
@@ -42,7 +50,11 @@ const inProgressCount = products.filter(
 const pendingCount = products.filter(
   p => parseInt(p.stage) === 0
 ).length;
-
+  const chartData = [
+  { name: "Pending", value: pendingCount },
+  { name: "In Progress", value: inProgressCount },
+  { name: "Delivered", value: deliveredCount }
+];
 const successRate =
   products.length > 0
     ? ((deliveredCount / products.length) * 100).toFixed(1)
@@ -69,7 +81,8 @@ const successRate =
     setContract(instance);
     loadProducts(instance);
   };
-
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(username);
   const loadProducts = async (instance) => {
     let items = [];
 
@@ -139,7 +152,16 @@ const successRate =
       }}>
         <h3 style={{ margin: "0 0 20px 0", color: "white", fontSize: "20px", fontWeight: "700" }}>Monthly Performance</h3>
         <div style={{ height: "300px", background: "#0f172a", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
-          📈 Chart visualization (integration ready)
+          <div style={{ height: "300px" }}>
+  <ResponsiveContainer width="100%" height="100%">
+    <BarChart data={chartData}>
+      <XAxis dataKey="name" stroke="#94a3b8" />
+      <YAxis stroke="#94a3b8" />
+      <Tooltip />
+      <Bar dataKey="value" />
+    </BarChart>
+  </ResponsiveContainer>
+</div>
         </div>
       </div>
     </div>
@@ -294,10 +316,86 @@ const successRate =
           👤
         </div>
         <h2 style={{ margin: "0 0 4px 0", color: "white", fontSize: "20px", fontWeight: "700" }}></h2>
-        <h2 style={{ color: "white" }}>
-  {username ? username.charAt(0).toUpperCase() + username.slice(1) : "User"}
-</h2>
+        {isEditing ? (
+  <input
+    autoFocus
+    value={newName}
+    onChange={(e) => setNewName(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #334155",
+      background: "#0f172a",
+      color: "white",
+      textAlign: "center"
+    }}
+  />
+) : (
+  <h2 style={{ color: "white" }}>
+    {username
+      ? username
+          .split(" ")
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ")
+      : "User"}
+  </h2>
+)}
 
+<div style={{ marginTop: "10px" }}>
+  {isEditing ? (
+    <>
+      <button
+        onClick={() => {
+          localStorage.setItem("username", newName);
+          setIsEditing(false);
+          window.location.reload(); // refresh UI
+        }}
+        style={{
+          padding: "6px 12px",
+          background: "#0d9488",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          marginRight: "8px",
+          cursor: "pointer"
+        }}
+      >
+        Save
+      </button>
+
+      <button
+        onClick={() => {
+          setIsEditing(false);
+          setNewName(username);
+        }}
+        style={{
+          padding: "6px 12px",
+          background: "#64748b",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          cursor: "pointer"
+        }}
+      >
+        Cancel
+      </button>
+    </>
+  ) : (
+    <button
+      onClick={() => setIsEditing(true)}
+      style={{
+        padding: "6px 12px",
+        background: "#0d9488",
+        color: "white",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer"
+      }}
+    >
+      Edit Profile
+    </button>
+  )}
+</div>
 <p style={{ color: "#94a3b8", fontSize: "14px" }}>
   {email}
 </p>
@@ -370,12 +468,14 @@ const successRate =
           {showAddForm && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <input
+                autoFocus
                 placeholder="Product Name"
                 value={name}
                 style={inputStyle}
                 onChange={(e) => setName(e.target.value)}
               />
               <input
+               autoFocus
                 placeholder="Description"
                 value={desc}
                 style={inputStyle}
@@ -696,6 +796,7 @@ const ActionButton = ({ item, role }) => {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
             <input
+            autoFocus
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
