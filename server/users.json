@@ -11,10 +11,28 @@
     "password": "12345678",
     "role": "1"
   },
-    {
+  {
     "name": "Manufacturer",
     "email": "deepparulekar1812@gmail.com",
     "password": "12345678",
     "role": "2"
+  },
+  {
+    "name": "Shruti Patani",
+    "email": "shrutipatani11@student.sfit.ac.in",
+    "password": "12345678909",
+    "role": "1"
+  },
+  {
+    "name": "manufacturer",
+    "email": "shrutipatani11@gmail.com",
+    "password": "09876543212",
+    "role": "2"
+  },
+  {
+    "name": "customer",
+    "email": "shruti.patani11@gmail.com",
+    "password": "12345678909",
+    "role": "5"
   }
 ]
