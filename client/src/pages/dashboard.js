@@ -8,7 +8,10 @@ function Dashboard() {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [name, setName] = useState("");
+  const username = localStorage.getItem("username") || "User";
+const email = localStorage.getItem("email") || "user@email.com";
   const [desc, setDesc] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState("products"); // Track active tab
@@ -21,7 +24,29 @@ function Dashboard() {
   ]);
 
   const role = localStorage.getItem("role");
+  // 🔥 REAL ANALYTICS
 
+const totalTransactions = products.reduce(
+  (sum, p) => sum + parseInt(p.stage),
+  0
+);
+
+const deliveredCount = products.filter(
+  p => parseInt(p.stage) === 5
+).length;
+
+const inProgressCount = products.filter(
+  p => parseInt(p.stage) > 0 && parseInt(p.stage) < 5
+).length;
+
+const pendingCount = products.filter(
+  p => parseInt(p.stage) === 0
+).length;
+
+const successRate =
+  products.length > 0
+    ? ((deliveredCount / products.length) * 100).toFixed(1)
+    : 0;
   useEffect(() => {
     loadBlockchain();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,10 +122,13 @@ function Dashboard() {
       <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>Track supply chain metrics and performance</p>
       
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "40px" }}>
-        <MetricCard title="Total Transactions" value={products.length * 3} icon="💳" growth="+15%" />
-        <MetricCard title="Avg Delivery Time" value="4.2" icon="⏱️" growth="Days" isText={true} />
-        <MetricCard title="Success Rate" value="98.5" icon="✅" growth="%" isText={true} />
-        <MetricCard title="Revenue" value="$15,420" icon="💰" growth="+8%" isText={true} />
+        <MetricCard title="Total Transactions" value={totalTransactions} icon="💳" growth="Live" />
+
+<MetricCard title="In Progress" value={inProgressCount} icon="⏳" growth="Live" />
+
+<MetricCard title="Delivered Products" value={deliveredCount} icon="📦" growth="Live" />
+
+<MetricCard title="Success Rate" value={`${successRate}%`} icon="✅" growth="Live" isText={true} />
       </div>
 
       <div style={{
@@ -156,70 +184,98 @@ function Dashboard() {
 
   // ⚙️ SETTINGS VIEW
   const SettingsView = () => (
-    <div>
-      <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Settings</h1>
-      <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>Manage your account and preferences</p>
-      
-      <div style={{
-        background: "#1e293b",
-        borderRadius: "12px",
-        border: "1px solid #334155",
-        padding: "24px",
-        marginBottom: "24px"
-      }}>
-        <h3 style={{ margin: "0 0 16px 0", color: "white", fontSize: "16px", fontWeight: "700" }}>Account Settings</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "16px", borderBottom: "1px solid #334155" }}>
-            <div>
-              <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>Email Address</p>
-              <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "12px" }}>user@example.com</p>
-            </div>
-            <button style={{ padding: "6px 12px", background: "#8b5a6e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "700", fontFamily: "'League Spartan', sans-serif", transition: "all 0.3s" }} onMouseEnter={(e) => e.target.style.background = "#9d6a7e"} onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}>Edit</button>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "16px", borderBottom: "1px solid #334155" }}>
-            <div>
-              <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>Password</p>
-              <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "12px" }}>••••••••</p>
-            </div>
-            <button style={{ padding: "6px 12px", background: "#8b5a6e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "700", fontFamily: "'League Spartan', sans-serif", transition: "all 0.3s" }} onMouseEnter={(e) => e.target.style.background = "#9d6a7e"} onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}>Change</button>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "16px", borderBottom: "1px solid #334155" }}>
-            <div>
-              <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>Notifications</p>
-              <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "12px" }}>Email alerts enabled</p>
-            </div>
-            <button style={{ padding: "6px 12px", background: "#8b5a6e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "700", fontFamily: "'League Spartan', sans-serif", transition: "all 0.3s" }} onMouseEnter={(e) => e.target.style.background = "#9d6a7e"} onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}>Configure</button>
-          </div>
-        </div>
-      </div>
+  <div>
+    <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>
+      Settings
+    </h1>
+    <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>
+      Manage your blockchain account and system details
+    </p>
 
-      <div style={{
-        background: "#1e293b",
-        borderRadius: "12px",
-        border: "1px solid #334155",
-        padding: "24px"
-      }}>
-        <h3 style={{ margin: "0 0 16px 0", color: "white", fontSize: "16px", fontWeight: "700" }}>Danger Zone</h3>
-        <button onClick={handleLogout} style={{
+    {/* ACCOUNT INFO */}
+    <div style={{
+      background: "#1e293b",
+      borderRadius: "12px",
+      border: "1px solid #334155",
+      padding: "24px",
+      marginBottom: "24px"
+    }}>
+      <h3 style={{ color: "white", marginBottom: "16px" }}>Account Info</h3>
+
+      <p style={{ color: "#94a3b8", fontSize: "12px" }}>Wallet Address</p>
+      <p style={{ color: "white", marginBottom: "12px" }}>
+        {account}
+      </p>
+
+      <button
+        onClick={() => navigator.clipboard.writeText(account)}
+        style={{
+          padding: "6px 12px",
+          background: "#0d9488",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontSize: "12px"
+        }}
+      >
+        Copy Address
+      </button>
+
+      <hr style={{ margin: "20px 0", borderColor: "#334155" }} />
+
+      <p style={{ color: "#94a3b8", fontSize: "12px" }}>Role</p>
+      <p style={{ color: "white" }}>{getRoleName()}</p>
+
+    </div>
+
+    {/* NETWORK INFO */}
+    <div style={{
+      background: "#1e293b",
+      borderRadius: "12px",
+      border: "1px solid #334155",
+      padding: "24px",
+      marginBottom: "24px"
+    }}>
+      <h3 style={{ color: "white", marginBottom: "16px" }}>Blockchain Info</h3>
+
+      <p style={{ color: "#94a3b8", fontSize: "12px" }}>Network</p>
+      <p style={{ color: "white" }}>Ganache Local Network</p>
+
+      <p style={{ color: "#94a3b8", fontSize: "12px", marginTop: "12px" }}>
+        Smart Contract
+      </p>
+      <p style={{ color: "white", wordBreak: "break-all" }}>
+        {contract?._address || "Not Connected"}
+      </p>
+    </div>
+
+    {/* ACTIONS */}
+    <div style={{
+      background: "#1e293b",
+      borderRadius: "12px",
+      border: "1px solid #334155",
+      padding: "24px"
+    }}>
+      <h3 style={{ color: "white", marginBottom: "16px" }}>Actions</h3>
+
+      <button
+        onClick={handleLogout}
+        style={{
           padding: "10px 20px",
-          background: "#8b5a6e",
+          background: "#dc2626",
           color: "white",
           border: "none",
           borderRadius: "8px",
           cursor: "pointer",
-          fontSize: "14px",
-          fontWeight: "700",
-          fontFamily: "'League Spartan', sans-serif",
-          textTransform: "uppercase",
-          letterSpacing: "-0.3px",
-          transition: "all 0.3s"
-        }} onMouseEnter={(e) => e.target.style.background = "#9d6a7e"} onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}>
-          Logout
-        </button>
-      </div>
+          fontWeight: "600"
+        }}
+      >
+        Logout
+      </button>
     </div>
-  );
-
+  </div>
+);
   // 👤 PROFILE VIEW
   const ProfileView = () => (
     <div>
@@ -237,15 +293,39 @@ function Dashboard() {
         <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "40px" }}>
           👤
         </div>
-        <h2 style={{ margin: "0 0 4px 0", color: "white", fontSize: "20px", fontWeight: "700" }}>User Name</h2>
-        <p style={{ margin: "0 0 16px 0", color: "#94a3b8", fontSize: "14px" }}>{getRoleName()}</p>
+        <h2 style={{ margin: "0 0 4px 0", color: "white", fontSize: "20px", fontWeight: "700" }}></h2>
+        <h2 style={{ color: "white" }}>
+  {username ? username.charAt(0).toUpperCase() + username.slice(1) : "User"}
+</h2>
+
+<p style={{ color: "#94a3b8", fontSize: "14px" }}>
+  {email}
+</p>
+
+<p style={{ color: "#64748b", fontSize: "12px", marginBottom: "10px" }}>
+  {getRoleName()}
+</p>
         <p style={{ margin: "0", color: "#64748b", fontSize: "12px" }}>Account Address: {account.substring(0, 10)}...{account.substring(-8)}</p>
       </div>
     </div>
   );
 
   // 📦 PRODUCTS VIEW (default)
-  const ProductsView = () => (
+  
+  const ProductsView = () => {
+  const filteredProducts = products.filter((item) => {
+    const stage = parseInt(item.stage);
+
+    if (statusFilter === "all") return true;
+    if (statusFilter === "completed") return stage === 5;
+    if (statusFilter === "in-progress") return stage > 0 && stage < 5;
+    if (statusFilter === "pending") return stage === 0;
+
+    return true;
+  });
+
+  return (
+    
     <div>
       <div style={{ marginBottom: "40px" }}>
         <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Supply Chain Dashboard</h1>
@@ -308,7 +388,7 @@ function Dashboard() {
           )}
         </div>
       )}
-
+      
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px", overflowX: "auto" }}>
         {["all", "in-progress", "completed", "pending"].map((filter) => (
           <button
@@ -363,8 +443,11 @@ function Dashboard() {
                   </td>
                 </tr>
               ) : (
-                products.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #334155", transition: "background 0.2s" }}
+                filteredProducts.map((item) => (
+                  <tr
+  key={item.id}
+  onClick={() => setSelectedProduct(item)}
+  style={{ cursor: "pointer" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "#0f172a"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                     <td style={{ padding: "16px", color: "white" }}>#{item.id}</td>
@@ -407,20 +490,29 @@ function Dashboard() {
 
       <div style={{ marginTop: "40px" }}>
         <h2 style={{ color: "white", fontSize: "20px", fontWeight: "700", marginBottom: "20px" }}>Latest Product Timeline</h2>
-        {products.length > 0 && (
-          <div style={{
-            background: "#1e293b",
-            borderRadius: "12px",
-            padding: "24px",
-            border: "1px solid #334155"
-          }}>
-            {renderTimeline(parseInt(products[0].stage))}
-          </div>
-        )}
+        {selectedProduct ? (
+  <div style={{
+    background: "#1e293b",
+    borderRadius: "12px",
+    padding: "24px",
+    border: "1px solid #334155"
+  }}>
+    <h3 style={{ color: "white", marginBottom: "10px" }}>
+      Product #{selectedProduct.id} Timeline
+    </h3>
+
+    {renderTimeline(parseInt(selectedProduct.stage))}
+  </div>
+) : (
+  <p style={{ color: "#94a3b8" }}>
+    Click on a product to view its timeline
+  </p>
+)}
+        
       </div>
     </div>
   );
-
+  };
   // 🔥 STAGE NAME HELPER
 const getStageName = (stage) => {
   switch (parseInt(stage)) {
@@ -659,7 +751,9 @@ const ActionButton = ({ item, role }) => {
             <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", position: "relative" }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
               <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "18px" }}>👤</div>
               <div>
-                <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>User</p>
+                <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>
+  {(username?.charAt(0).toUpperCase() + username?.slice(1)) || "User"}
+</p>
                 <p style={{ margin: "0", color: "#94a3b8", fontSize: "12px" }}>{getRoleName()}</p>
               </div>
             </div>

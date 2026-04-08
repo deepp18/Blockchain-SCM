@@ -84,7 +84,8 @@ if (!res.ok) {
     await registerOnBlockchain(signupData.role);
 
     localStorage.setItem("role", signupData.role);
-
+    localStorage.setItem("username", signupData.name);
+localStorage.setItem("email", signupData.email);
     alert("Signup Successful ✅");
     toggle(true);
 
@@ -115,10 +116,15 @@ if (!res.ok) {
       const data = await res.json();
 
       if (data.role) {
-        localStorage.setItem("role", data.role);
+  localStorage.setItem("role", data.role);
 
-        alert("Login Successful ✅");
-        navigate("/dashboard");
+  // 🔥 ADD THESE 2 LINES
+  localStorage.setItem("email", loginData.email);
+  localStorage.setItem("username", data.name || "User");
+
+  alert("Login Successful ✅");
+  navigate("/dashboard");
+
       } else {
         alert("Invalid credentials ❌");
       }
