@@ -32,7 +32,19 @@
   {
     "name": "customer",
     "email": "shruti.patani11@gmail.com",
-    "password": "12345678909",
+    "password": "12345678",
     "role": "5"
+  },
+  {
+    "name": "shubham",
+    "email": "shubhammalekar153@gmail.com",
+    "password": "12345678",
+    "role": "3"
+  },
+  {
+    "name": "shubham ",
+    "email": "shubhammalekar@gmail.com",
+    "password": "12345678",
+    "role": "4"
   }
 ]

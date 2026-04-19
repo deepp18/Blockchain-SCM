@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Web3 from "web3";
 import SupplyChain from "../contracts/SupplyChain.json";
 import {
@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
-
+console.log("ABI CHECK:", SupplyChain.abi);
 function Dashboard() {
   const [account, setAccount] = useState("");
   const [contract, setContract] = useState(null);
@@ -18,6 +18,8 @@ function Dashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [name, setName] = useState("");
+  const nameRef = useRef(null);
+  const descRef = useRef(null);
   const username = localStorage.getItem("username") || "User";
 const email = localStorage.getItem("email") || "user@email.com";
   const [desc, setDesc] = useState("");
@@ -25,12 +27,21 @@ const email = localStorage.getItem("email") || "user@email.com";
   const [activeTab, setActiveTab] = useState("products"); // Track active tab
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const availableProducts = [
+  { name: "Paracetamol", desc: "Fever & pain relief" },
+  { name: "Crocin", desc: "Cold & fever medicine" },
+  { name: "Azithromycin", desc: "Antibiotic" },
+  { name: "Vitamin C", desc: "Immunity booster" }
+];
   const [notifications] = useState([
     { id: 1, message: "Product #1 moved to manufacturing", time: "2 hours ago" },
     { id: 2, message: "New order received", time: "5 hours ago" },
     { id: 3, message: "Delivery completed", time: "1 day ago" }
   ]);
-
+  const approveMedicine = async (id) => {
+  await contract.methods.approveMedicine(id).send({ from: account });
+  loadProducts(contract);
+};
   const role = localStorage.getItem("role");
   // 🔥 REAL ANALYTICS
 
@@ -55,6 +66,7 @@ const pendingCount = products.filter(
   { name: "In Progress", value: inProgressCount },
   { name: "Delivered", value: deliveredCount }
 ];
+
 const successRate =
   products.length > 0
     ? ((deliveredCount / products.length) * 100).toFixed(1)
@@ -64,23 +76,55 @@ const successRate =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadBlockchain = async () => {
-    const web3 = new Web3(window.ethereum);
-    await window.ethereum.request({ method: "eth_requestAccounts" });
+  useEffect(() => {
+  if (nameRef.current) {
+    nameRef.current.focus();
+  }
+}, [name]);
 
-    const accounts = await web3.eth.getAccounts();
-    setAccount(accounts[0]);
+useEffect(() => {
+  if (descRef.current) {
+    descRef.current.focus();
+  }
+}, [desc]);
 
-    const network = SupplyChain.networks["5777"];
+ const loadBlockchain = async () => {
+  if (!window.ethereum) {
+    alert("Install MetaMask");
+    return;
+  }
 
-    const instance = new web3.eth.Contract(
-      SupplyChain.abi,
-      network.address
-    );
+  const web3 = new Web3(window.ethereum);
 
-    setContract(instance);
-    loadProducts(instance);
-  };
+  await window.ethereum.request({ method: "eth_requestAccounts" });
+
+  const accounts = await web3.eth.getAccounts();
+  setAccount(accounts[0]);
+
+  // 🔥 IMPORTANT CHANGE (dynamic network)
+  const networkId = await web3.eth.net.getId();
+  const network = SupplyChain.networks[networkId];
+
+  console.log("NETWORK:", network);
+
+  if (!network) {
+    alert("Contract not deployed on this network");
+    return;
+  }
+
+  const instance = new web3.eth.Contract(
+    SupplyChain.abi,
+    network.address
+  );
+
+  // 🔥 DEBUG (CRITICAL)
+  console.log("METHODS:", Object.keys(instance.methods));
+  console.log("requestMedicine:", instance.methods.requestMedicine);
+
+  setContract(instance);
+  loadProducts(instance);
+};
+    
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(username);
   const loadProducts = async (instance) => {
@@ -93,14 +137,21 @@ const successRate =
       } catch {}
     }
 
-    setProducts(items);
+    const filtered = items.filter(item => {
+  if (role === "5") {
+    return item.customer?.toLowerCase() === account.toLowerCase();
+  }
+  return true;
+});
+
+setProducts(filtered);
   };
 
   // 🔥 ACTIONS
-  const addProduct = async () => {
-    await contract.methods.addMedicine(name, desc).send({ from: account });
-    loadProducts(contract);
-  };
+const requestMedicine = async (name, desc) => {
+  await contract.methods.requestMedicine(name, desc).send({ from: account });
+  loadProducts(contract);
+};
 
   const RMSsupply = async (id) => {
     await contract.methods.RMSsupply(id).send({ from: account });
@@ -318,7 +369,7 @@ const successRate =
         <h2 style={{ margin: "0 0 4px 0", color: "white", fontSize: "20px", fontWeight: "700" }}></h2>
         {isEditing ? (
   <input
-    autoFocus
+    
     value={newName}
     onChange={(e) => setNewName(e.target.value)}
     style={{
@@ -411,33 +462,34 @@ const successRate =
   // 📦 PRODUCTS VIEW (default)
   
   const ProductsView = () => {
+
+  const availableProducts = [
+    { name: "Paracetamol", desc: "Fever & pain relief" },
+    { name: "Crocin", desc: "Cold & fever medicine" },
+    { name: "Azithromycin", desc: "Antibiotic" },
+    { name: "Vitamin C", desc: "Immunity booster" }
+  ];
+
   const filteredProducts = products.filter((item) => {
     const stage = parseInt(item.stage);
 
     if (statusFilter === "all") return true;
-    if (statusFilter === "completed") return stage === 5;
-    if (statusFilter === "in-progress") return stage > 0 && stage < 5;
+    if (statusFilter === "completed") return stage === 6;
+    if (statusFilter === "in-progress") return stage > 0 && stage < 6;
     if (statusFilter === "pending") return stage === 0;
 
     return true;
   });
 
   return (
-    
     <div>
       <div style={{ marginBottom: "40px" }}>
-        <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Supply Chain Dashboard</h1>
-        <p style={{ margin: "0", color: "#94a3b8", fontSize: "14px" }}>Manage and track products across the supply chain</p>
+        <h1 style={{ color: "white" }}>Supply Chain Dashboard</h1>
+        <p style={{ color: "#94a3b8" }}>Manage and track products</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "40px" }}>
-        <MetricCard title="Total Products" value={products.length} icon="📦" growth="+12%" />
-        <MetricCard title="In Transit" value={products.filter(p => parseInt(p.stage) >= 3 && parseInt(p.stage) <= 4).length} icon="🚚" growth="+8%" />
-        <MetricCard title="Delivered" value={products.filter(p => parseInt(p.stage) === 5).length} icon="✅" growth="+24%" />
-        <MetricCard title="Your Role" value={getRoleName()} icon="👤" growth={role} isText={true} />
-      </div>
-
-      {role === "2" && (
+      {/* 🔥 CUSTOMER PRODUCT SELECTION */}
+      {role === "5" && (
         <div style={{
           background: "#1e293b",
           borderRadius: "12px",
@@ -445,183 +497,85 @@ const successRate =
           marginBottom: "40px",
           border: "1px solid #334155"
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h2 style={{ margin: "0", color: "white", fontSize: "20px", fontWeight: "700" }}>Add New Product</h2>
-            <button onClick={() => setShowAddForm(!showAddForm)} style={{
-              background: showAddForm ? "#0f172a" : "#8b5a6e",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              padding: "8px 16px",
-              cursor: "pointer",
-              fontSize: "12px",
-              fontWeight: "700",
-              fontFamily: "'League Spartan', sans-serif",
-              textTransform: "uppercase",
-              letterSpacing: "-0.3px",
-              transition: "all 0.3s"
-            }} onMouseEnter={(e) => { if (!showAddForm) e.target.style.background = "#9d6a7e"; }} onMouseLeave={(e) => { if (!showAddForm) e.target.style.background = "#8b5a6e"; }}>
-              {showAddForm ? "Cancel" : "Add Product"}
-            </button>
+          <h2 style={{ color: "white", marginBottom: "20px" }}>
+            Select Product
+          </h2>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "12px"
+          }}>
+            {availableProducts.map((p, index) => (
+              <div key={index} style={{
+                background: "#0f172a",
+                padding: "16px",
+                borderRadius: "8px",
+                border: "1px solid #334155"
+              }}>
+                <h3 style={{ color: "white" }}>{p.name}</h3>
+                <p style={{ color: "#94a3b8", fontSize: "12px" }}>
+                  {p.desc}
+                </p>
+
+                <button
+                  onClick={() => requestMedicine(p.name, p.desc)}
+                  style={{ ...btnStyle, marginTop: "10px" }}
+                >
+                  Order
+                </button>
+              </div>
+            ))}
           </div>
-          
-          {showAddForm && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <input
-                autoFocus
-                placeholder="Product Name"
-                value={name}
-                style={inputStyle}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-               autoFocus
-                placeholder="Description"
-                value={desc}
-                style={inputStyle}
-                onChange={(e) => setDesc(e.target.value)}
-              />
-              <button onClick={addProduct} style={{ ...btnStyle, gridColumn: "1 / -1", background: "#8b5a6e" }} onMouseEnter={(e) => e.target.style.background = "#9d6a7e"} onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}>
-                Create Product
-              </button>
-            </div>
-          )}
         </div>
       )}
-      
-      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", overflowX: "auto" }}>
+
+      {/* FILTER BUTTONS */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
         {["all", "in-progress", "completed", "pending"].map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setStatusFilter(filter)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: statusFilter === filter ? "1px solid #8b5a6e" : "1px solid #334155",
-              background: statusFilter === filter ? "#8b5a6e" : "#1e293b",
-              color: "white",
-              cursor: "pointer",
-              fontSize: "12px",
-              fontWeight: "700",
-              fontFamily: "'League Spartan', sans-serif",
-              whiteSpace: "nowrap",
-              textTransform: "uppercase",
-              letterSpacing: "-0.3px",
-              transition: "all 0.3s"
-            }}
-            onMouseEnter={(e) => { if (statusFilter !== filter) { e.target.style.background = "#0d9488"; e.target.style.borderColor = "#0d9488"; }}}
-            onMouseLeave={(e) => { if (statusFilter !== filter) { e.target.style.background = "#1e293b"; e.target.style.borderColor = "#334155"; }}}
-          >
-            {filter === "all" ? "All Products" : filter === "in-progress" ? "In Progress" : filter === "completed" ? "Completed" : "Pending"}
+          <button key={filter} onClick={() => setStatusFilter(filter)}>
+            {filter}
           </button>
         ))}
       </div>
 
-      <div style={{
-        background: "#1e293b",
-        borderRadius: "12px",
-        border: "1px solid #334155",
-        overflow: "hidden"
-      }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #334155" }}>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Product ID</th>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Name</th>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Description</th>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Stage</th>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Status</th>
-                <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontWeight: "600", background: "#0f172a" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.length === 0 ? (
-                <tr>
-                  <td colSpan="6" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-                    No products yet. {role === "2" && "Add one to get started!"}
-                  </td>
-                </tr>
-              ) : (
-                filteredProducts.map((item) => (
-                  <tr
-  key={item.id}
-  onClick={() => setSelectedProduct(item)}
-  style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#0f172a"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: "16px", color: "white" }}>#{item.id}</td>
-                    <td style={{ padding: "16px", color: "white", fontWeight: "600" }}>{item.name}</td>
-                    <td style={{ padding: "16px", color: "#cbd5e1" }}>{item.description.substring(0, 30)}...</td>
-                    <td style={{ padding: "16px" }}>
-                      <span style={{
-                        background: "#0d9488",
-                        color: "white",
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: "600"
-                      }}>
-                        {getStageName(item.stage)}
-                      </span>
-                    </td>
-                    <td style={{ padding: "16px" }}>
-                      <span style={{
-                        background: parseInt(item.stage) === 5 ? "#10b981" : "#f59e0b",
-                        color: "white",
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: "600"
-                      }}>
-                        {parseInt(item.stage) === 5 ? "Delivered" : "In Transit"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "16px" }}>
-                      <ActionButton item={item} role={role} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* TABLE */}
+      <table style={{ width: "100%", color: "white" }}>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Stage</th>
+            <th>Action</th>
+          </tr>
+        </thead>
 
-      <div style={{ marginTop: "40px" }}>
-        <h2 style={{ color: "white", fontSize: "20px", fontWeight: "700", marginBottom: "20px" }}>Latest Product Timeline</h2>
-        {selectedProduct ? (
-  <div style={{
-    background: "#1e293b",
-    borderRadius: "12px",
-    padding: "24px",
-    border: "1px solid #334155"
-  }}>
-    <h3 style={{ color: "white", marginBottom: "10px" }}>
-      Product #{selectedProduct.id} Timeline
-    </h3>
-
-    {renderTimeline(parseInt(selectedProduct.stage))}
-  </div>
-) : (
-  <p style={{ color: "#94a3b8" }}>
-    Click on a product to view its timeline
-  </p>
-)}
-        
-      </div>
+        <tbody>
+          {filteredProducts.map((item) => (
+            <tr key={item.id}>
+              <td>{item.id}</td>
+              <td>{item.name}</td>
+              <td>{getStageName(item.stage)}</td>
+              <td>
+                <ActionButton item={item} role={role} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
-  };
+};
   // 🔥 STAGE NAME HELPER
 const getStageName = (stage) => {
   switch (parseInt(stage)) {
-    case 0: return "Created";
-    case 1: return "Raw Material Supplied";
-    case 2: return "Manufactured";
-    case 3: return "Distributed";
-    case 4: return "Retail";
-    case 5: return "Sold";
+    case 0: return "Requested";
+    case 1: return "Approved";
+    case 2: return "Raw Material";
+    case 3: return "Manufactured";
+    case 4: return "Distributed";
+    case 5: return "Retail";
+    case 6: return "Sold";
     default: return "Unknown";
   }
 };
@@ -643,15 +597,19 @@ const ActionButton = ({ item, role }) => {
 
   // Supplier → only when stage = 0
   if (role === "1") {
-    if (stage !== 0) return <span style={disabledStyle}>Waiting</span>;
-    return <button onClick={() => RMSsupply(item.id)} style={btn}>Supply</button>;
-  }
+  if (stage !== 1) return <span style={disabledStyle}>Waiting</span>;
+  return <button onClick={() => RMSsupply(item.id)} style={btn}>Supply</button>;
+}
 
   // Manufacturer → only when stage = 1
-  if (role === "2") {
-    if (stage !== 1) return <span style={disabledStyle}>Waiting</span>;
-    return <button onClick={() => Manufacturing(item.id)} style={btn}>Manufacture</button>;
+ // Manufacturer
+if (role === "2") {
+  if (stage === 0) {
+    return <button onClick={() => approveMedicine(item.id)} style={btn}>Approve</button>;
   }
+  if (stage !== 2) return <span style={disabledStyle}>Waiting</span>;
+  return <button onClick={() => Manufacturing(item.id)} style={btn}>Manufacture</button>;
+}
 
   // Distributor → only when stage = 2
   if (role === "3") {
@@ -707,13 +665,14 @@ const ActionButton = ({ item, role }) => {
   // 📦 STAGE TIMELINE
   const renderTimeline = (stage) => {
     const stages = [
-      { name: "Created", icon: "✨" },
-      { name: "Raw Material", icon: "📦" },
-      { name: "Manufactured", icon: "🏭" },
-      { name: "Distributed", icon: "🚚" },
-      { name: "Retail", icon: "🏪" },
-      { name: "Sold", icon: "✅" }
-    ];
+  { name: "Requested", icon: "📝" },
+  { name: "Approved", icon: "✅" },
+  { name: "Raw Material", icon: "📦" },
+  { name: "Manufactured", icon: "🏭" },
+  { name: "Distributed", icon: "🚚" },
+  { name: "Retail", icon: "🏪" },
+  { name: "Sold", icon: "🎉" }
+];
 
     return (
       <div style={{ marginTop: "24px", position: "relative" }}>
@@ -796,7 +755,7 @@ const ActionButton = ({ item, role }) => {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
             <input
-            autoFocus
+            
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

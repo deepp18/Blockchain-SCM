@@ -26,7 +26,7 @@ function Login() {
   // 🔥 REGISTER ROLE ON BLOCKCHAIN
   const registerOnBlockchain = async (role) => {
     const web3 = new Web3(window.ethereum);
-
+    localStorage.setItem("account", accounts[0]);
     await window.ethereum.request({ method: "eth_requestAccounts" });
 
     const accounts = await web3.eth.getAccounts();
@@ -81,7 +81,7 @@ if (!res.ok) {
 }
 
     // 🔥 BLOCKCHAIN CALL
-    await registerOnBlockchain(signupData.role);
+    await registerOnBlockchain(parseInt(signupData.role));
 
     localStorage.setItem("role", signupData.role);
     localStorage.setItem("username", signupData.name);
@@ -430,75 +430,7 @@ localStorage.setItem("email", signupData.email);
             <div style={{ flex: 1, height: "1px", background: "#334155" }}></div>
           </div>
 
-          {/* SOCIAL LOGIN BUTTONS */}
-          <div style={{
-            display: "flex",
-            gap: "12px",
-            justifyContent: "center",
-            marginBottom: "24px"
-          }}>
-            <button title="Continue with Google" style={{
-              flex: 1,
-              maxWidth: "120px",
-              padding: "12px 16px",
-              borderRadius: "12px",
-              border: "1px solid #334155",
-              background: "#1e293b",
-              color: "#94a3b8",
-              fontSize: "13px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px"
-            }} onMouseEnter={(e) => { e.target.style.background = "#0d9488"; e.target.style.borderColor = "#0d9488"; e.target.style.color = "white"; }} onMouseLeave={(e) => { e.target.style.background = "#1e293b"; e.target.style.borderColor = "#334155"; e.target.style.color = "#94a3b8"; }}>
-              Google
-            </button>
-            <button title="Continue with Apple" style={{
-              flex: 1,
-              maxWidth: "120px",
-              padding: "12px 16px",
-              borderRadius: "12px",
-              border: "1px solid #334155",
-              background: "#1e293b",
-              color: "#94a3b8",
-              fontSize: "13px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px"
-            }} onMouseEnter={(e) => { e.target.style.background = "#0d9488"; e.target.style.borderColor = "#0d9488"; e.target.style.color = "white"; }} onMouseLeave={(e) => { e.target.style.background = "#1e293b"; e.target.style.borderColor = "#334155"; e.target.style.color = "#94a3b8"; }}>
-              Apple
-            </button>
-            <button title="Continue with Facebook" style={{
-              flex: 1,
-              maxWidth: "120px",
-              padding: "12px 16px",
-              borderRadius: "12px",
-              border: "1px solid #334155",
-              background: "#1e293b",
-              color: "#94a3b8",
-              fontSize: "13px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px"
-            }} onMouseEnter={(e) => { e.target.style.background = "#0d9488"; e.target.style.borderColor = "#0d9488"; e.target.style.color = "white"; }} onMouseLeave={(e) => { e.target.style.background = "#1e293b"; e.target.style.borderColor = "#334155"; e.target.style.color = "#94a3b8"; }}>
-              Facebook
-            </button>
-          </div>
-
+          
           {/* TOGGLE TO SIGNUP/LOGIN */}
           <div style={{
             textAlign: "center",
