@@ -1,21 +1,9 @@
 [
   {
-    "name": "deep",
-    "email": "deepdragon10@gmail.com",
-    "password": "12345678",
-    "role": "5"
-  },
-  {
     "name": "Supplier",
     "email": "deepdragoon10@gmail.com",
     "password": "12345678",
     "role": "1"
-  },
-  {
-    "name": "Manufacturer",
-    "email": "deepparulekar1812@gmail.com",
-    "password": "12345678",
-    "role": "2"
   },
   {
     "name": "Shruti Patani",
@@ -30,12 +18,6 @@
     "role": "2"
   },
   {
-    "name": "customer",
-    "email": "shruti.patani11@gmail.com",
-    "password": "12345678",
-    "role": "5"
-  },
-  {
     "name": "shubham",
     "email": "shubhammalekar153@gmail.com",
     "password": "12345678",
@@ -46,5 +28,23 @@
     "email": "shubhammalekar@gmail.com",
     "password": "12345678",
     "role": "4"
+  },
+  {
+    "name": "Customer",
+    "email": "deepdragon10@gmail.com",
+    "password": "12345678",
+    "role": "5"
+  },
+  {
+    "name": "Manufacturer",
+    "email": "deepparulekar1812@gmail.com",
+    "password": "12345678",
+    "role": "2"
+  },
+  {
+    "name": "Deep",
+    "email": "shruti@gmail.com",
+    "password": "12345678",
+    "role": "5"
   }
 ]

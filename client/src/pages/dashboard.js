@@ -26,6 +26,7 @@ const email = localStorage.getItem("email") || "user@email.com";
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState("products"); // Track active tab
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
   const [showNotifications, setShowNotifications] = useState(false);
   const availableProducts = [
   { name: "Paracetamol", desc: "Fever & pain relief" },
@@ -40,7 +41,7 @@ const email = localStorage.getItem("email") || "user@email.com";
   ]);
   const approveMedicine = async (id) => {
   await contract.methods.approveMedicine(id).send({ from: account });
-  loadProducts(contract);
+  loadProducts(contract, account);
 };
   const role = localStorage.getItem("role");
   // 🔥 REAL ANALYTICS
@@ -49,7 +50,14 @@ const totalTransactions = products.reduce(
   (sum, p) => sum + parseInt(p.stage),
   0
 );
+const [quantities, setQuantities] = useState({});
 
+const handleQuantityChange = (index, delta) => {
+  setQuantities(prev => ({
+    ...prev,
+    [index]: Math.max(1, (prev[index] || 1) + delta)
+  }));
+};
 const deliveredCount = products.filter(
   p => parseInt(p.stage) === 5
 ).length;
@@ -95,17 +103,15 @@ useEffect(() => {
   }
 
   const web3 = new Web3(window.ethereum);
-
   await window.ethereum.request({ method: "eth_requestAccounts" });
 
   const accounts = await web3.eth.getAccounts();
-  setAccount(accounts[0]);
+  const currentAccount = accounts[0];
+  setAccount(currentAccount);
+  localStorage.setItem("user_" + currentAccount, username);
 
-  // 🔥 IMPORTANT CHANGE (dynamic network)
   const networkId = await web3.eth.net.getId();
   const network = SupplyChain.networks[networkId];
-
-  console.log("NETWORK:", network);
 
   if (!network) {
     alert("Contract not deployed on this network");
@@ -117,62 +123,96 @@ useEffect(() => {
     network.address
   );
 
-  // 🔥 DEBUG (CRITICAL)
-  console.log("METHODS:", Object.keys(instance.methods));
-  console.log("requestMedicine:", instance.methods.requestMedicine);
-
   setContract(instance);
-  loadProducts(instance);
+
+  // ✅ PASS ACCOUNT DIRECTLY (IMPORTANT)
+  loadProducts(instance, currentAccount);
 };
     
   const [isEditing, setIsEditing] = useState(false);
-  const [newName, setNewName] = useState(username);
-  const loadProducts = async (instance) => {
-    let items = [];
+    const [newName, setNewName] = useState(username);
+ const loadProducts = async (instance, currentAccount) => {
+  let items = [];
 
-    for (let i = 1; i <= 20; i++) {
-      try {
-        let data = await instance.methods.MedicineStock(i).call();
-        if (data.id !== "0") items.push(data);
-      } catch {}
+  let count = await instance.methods.medicineCtr().call();
+  count = parseInt(count) || 0;
+  if (count > 1000) count = 1000; // Safety limit
+  
+  console.log("TOTAL COUNT:", count);
+
+  for (let i = 1; i <= count; i++) {
+    try {
+      let data = await instance.methods.MedicineStock(i).call();
+
+      if (parseInt(data.id) > 0) {
+        items.push(data);
+      }
+
+      // Add a small delay to prevent "RPC endpoint returned too many errors"
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (e) {
+      console.error("Error at ID:", i, e);
     }
+  }
 
-    const filtered = items.filter(item => {
+  console.log("ITEMS BEFORE FILTER:", items);
+
+const filtered = items.filter(item => {
   if (role === "5") {
-    return item.customer?.toLowerCase() === account.toLowerCase();
+    return (
+      item.customer &&
+      currentAccount &&
+      item.customer.toLowerCase() === currentAccount.toLowerCase()
+    );
   }
   return true;
 });
 
-setProducts(filtered);
-  };
+  console.log("FINAL PRODUCTS:", filtered);
+
+  setProducts(filtered);
+};
 
   // 🔥 ACTIONS
-const requestMedicine = async (name, desc) => {
-  await contract.methods.requestMedicine(name, desc).send({ from: account });
-  loadProducts(contract);
+const requestMedicine = async (name, desc, qty = 1) => {
+  const fullDesc = `${desc} | Qty: ${qty}`;
+  await contract.methods.requestMedicine(name, fullDesc).send({ from: account });
+  loadProducts(contract,account);
+  
+};
+const registerCustomer = async () => {
+  try {
+    await contract.methods.registerRole(5).send({ from: account });
+    console.log("✅ Registered as Customer");
+  } catch (err) {
+    console.error("❌ Role error:", err);
+  }
 };
 
   const RMSsupply = async (id) => {
     await contract.methods.RMSsupply(id).send({ from: account });
-    loadProducts(contract);
+    loadProducts(contract,account);
   };
 
   const Manufacturing = async (id) => {
     await contract.methods.Manufacturing(id).send({ from: account });
-    loadProducts(contract);
+    loadProducts(contract,account);
   };
 
   const Distribute = async (id) => {
     await contract.methods.Distribute(id).send({ from: account });
-    loadProducts(contract);
+    loadProducts(contract,account );
   };
 
   const Retail = async (id) => {
     await contract.methods.Retail(id).send({ from: account });
-    loadProducts(contract);
+    loadProducts(contract,account);
   };
-
+  const sold = async (id) => {
+  await contract.methods.sold(id).send({ from: account });
+  loadProducts(contract,account );
+};
   // 🔓 LOGOUT HANDLER
   const handleLogout = () => {
     localStorage.removeItem("role");
@@ -218,42 +258,91 @@ const requestMedicine = async (name, desc) => {
     </div>
   );
 
-  // 📋 REPORTS VIEW
-  const ReportsView = () => (
-    <div>
-      <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Reports</h1>
-      <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>View detailed supply chain reports</p>
-      
-      <div style={{
-        background: "#1e293b",
-        borderRadius: "12px",
-        border: "1px solid #334155",
-        padding: "24px",
-        marginBottom: "24px"
-      }}>
-        <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
-          {["Inventory Report", "Delivery Report", "Cost Analysis", "Supplier Performance"].map((report) => (
-            <button key={report} style={{
-              padding: "8px 16px",
-              borderRadius: "20px",
-              border: "1px solid #334155",
-              background: "#0f172a",
-              color: "white",
-              cursor: "pointer",
-              fontSize: "12px",
-              fontWeight: "600",
-              transition: "all 0.3s"
-            }} onMouseEnter={(e) => e.target.style.background = "#0d9488"} onMouseLeave={(e) => e.target.style.background = "#0f172a"}>
-              📄 {report}
-            </button>
-          ))}
-        </div>
-        <div style={{ height: "200px", background: "#0f172a", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
-          Reports will load here
+  // 📜 TRANSACTION HISTORY VIEW
+  const TransactionHistoryView = () => {
+    // Sort products by ID descending (newest first)
+    const sortedProducts = [...products].sort((a, b) => parseInt(b.id) - parseInt(a.id));
+
+    return (
+      <div>
+        <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Transaction History</h1>
+        <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>View history of all product transactions and state changes</p>
+        
+        <div style={{
+          background: "#1e293b",
+          borderRadius: "12px",
+          border: "1px solid #334155",
+          padding: "24px",
+          marginBottom: "24px"
+        }}>
+          {sortedProducts.length === 0 ? (
+            <div style={{ height: "200px", background: "#0f172a", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+              No transactions found
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {sortedProducts.map(item => {
+                const safeDesc = item.description || "";
+                const parsedDesc = safeDesc.split(" | Qty: ")[0];
+                const parsedQty = safeDesc.includes(" | Qty: ") ? safeDesc.split(" | Qty: ")[1] : (item.quantity || 1);
+                
+                return (
+                  <div key={item.id} style={{
+                    background: "#0f172a",
+                    border: "1px solid #334155",
+                    borderRadius: "8px",
+                    padding: "16px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                        <span style={{ color: "white", fontWeight: "700", fontSize: "16px" }}>#{item.id} {item.name}</span>
+                        <span style={{
+                          background: "#0d9488",
+                          color: "white",
+                          padding: "4px 10px",
+                          borderRadius: "12px",
+                          fontSize: "11px",
+                          fontWeight: "600"
+                        }}>
+                          {getStageName(item.stage)}
+                        </span>
+                      </div>
+                      <p style={{ margin: "0", color: "#94a3b8", fontSize: "13px" }}>
+                        {parsedDesc} • Qty: {parsedQty}
+                      </p>
+                      {/* Show customer info for roles that are not 5 */}
+                      {role !== "5" && (
+                         <p style={{ margin: "8px 0 0 0", color: "#64748b", fontSize: "12px" }}>
+                           Customer: {getCustomerName(item.customer)}
+                         </p>
+                      )}
+                    </div>
+                    
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ margin: "0 0 4px 0", color: "#94a3b8", fontSize: "12px" }}>Status</p>
+                      <span style={{
+                        color: "#f59e0b",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        background: "#f59e0b20",
+                        padding: "4px 8px",
+                        borderRadius: "8px"
+                      }}>
+                        {getStatusLabel(item.stage)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ⚙️ SETTINGS VIEW
   const SettingsView = () => (
@@ -464,10 +553,22 @@ const requestMedicine = async (name, desc) => {
   const ProductsView = () => {
 
   const availableProducts = [
-    { name: "Paracetamol", desc: "Fever & pain relief" },
-    { name: "Crocin", desc: "Cold & fever medicine" },
-    { name: "Azithromycin", desc: "Antibiotic" },
-    { name: "Vitamin C", desc: "Immunity booster" }
+    { name: "Paracetamol", desc: "Fever & pain relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Paracetamol" },
+    { name: "Crocin", desc: "Cold & fever medicine", image: "https://placehold.co/400x300/1e293b/0d9488?text=Crocin" },
+    { name: "Azithromycin", desc: "Antibiotic", image: "https://placehold.co/400x300/1e293b/0d9488?text=Azithromycin" },
+    { name: "Vitamin C", desc: "Immunity booster", image: "https://placehold.co/400x300/1e293b/0d9488?text=Vitamin+C" },
+    { name: "Ibuprofen", desc: "Anti-inflammatory", image: "https://placehold.co/400x300/1e293b/0d9488?text=Ibuprofen" },
+    { name: "Amoxicillin", desc: "Bacterial infection", image: "https://placehold.co/400x300/1e293b/0d9488?text=Amoxicillin" },
+    { name: "Cetirizine", desc: "Allergy relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Cetirizine" },
+    { name: "Omeprazole", desc: "Acid reflux medication", image: "https://placehold.co/400x300/1e293b/0d9488?text=Omeprazole" },
+    { name: "Metformin", desc: "Diabetes management", image: "https://placehold.co/400x300/1e293b/0d9488?text=Metformin" },
+    { name: "Amlodipine", desc: "Blood pressure medicine", image: "https://placehold.co/400x300/1e293b/0d9488?text=Amlodipine" },
+    { name: "Aspirin", desc: "Pain & blood thinner", image: "https://placehold.co/400x300/1e293b/0d9488?text=Aspirin" },
+    { name: "Vitamin D3", desc: "Bone health", image: "https://placehold.co/400x300/1e293b/0d9488?text=Vitamin+D3" },
+    { name: "Cough Syrup", desc: "Dry cough relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Cough+Syrup" },
+    { name: "B-Complex", desc: "Energy metabolism", image: "https://placehold.co/400x300/1e293b/0d9488?text=B-Complex" },
+    { name: "Antacid Gel", desc: "Stomach relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Antacid+Gel" },
+    { name: "Eye Drops", desc: "Dry eye relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Eye+Drops" }
   ];
 
   const filteredProducts = products.filter((item) => {
@@ -483,86 +584,229 @@ const requestMedicine = async (name, desc) => {
 
   return (
     <div>
-      <div style={{ marginBottom: "40px" }}>
-        <h1 style={{ color: "white" }}>Supply Chain Dashboard</h1>
-        <p style={{ color: "#94a3b8" }}>Manage and track products</p>
+      <div style={{ marginBottom: "24px" }}>
+        <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Supply Chain Dashboard</h1>
+        <p style={{ margin: "0", color: "#94a3b8", fontSize: "14px" }}>Manage and track products across the supply chain</p>
+      </div>
+
+      {/* METRIC CARDS */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "40px" }}>
+        <MetricCard title="Total Products" value={products.length} icon="📦" growth="+12% vs last month" />
+        <MetricCard title="In Transit" value={inProgressCount} icon="🚚" growth="-8% vs last month" />
+        <MetricCard title="Delivered" value={deliveredCount} icon="✅" growth="+24% vs last month" />
+        <MetricCard title="Your Role" value={getRoleName()} icon="👤" growth="Active" isText={true} />
       </div>
 
       {/* 🔥 CUSTOMER PRODUCT SELECTION */}
       {role === "5" && (
-        <div style={{
-          background: "#1e293b",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "40px",
-          border: "1px solid #334155"
-        }}>
-          <h2 style={{ color: "white", marginBottom: "20px" }}>
-            Select Product
-          </h2>
+  <div
+    style={{
+      background: "#1e293b",
+      borderRadius: "12px",
+      padding: "24px",
+      marginBottom: "40px",
+      border: "1px solid #334155"
+    }}
+  >
+    <h2 style={{ color: "white", marginBottom: "20px" }}>
+      Select Product
+    </h2>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "12px"
-          }}>
-            {availableProducts.map((p, index) => (
-              <div key={index} style={{
-                background: "#0f172a",
-                padding: "16px",
-                borderRadius: "8px",
-                border: "1px solid #334155"
-              }}>
-                <h3 style={{ color: "white" }}>{p.name}</h3>
-                <p style={{ color: "#94a3b8", fontSize: "12px" }}>
-                  {p.desc}
-                </p>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: "16px"
+      }}
+    >
+      {availableProducts.map((p, index) => (
+        <div
+          key={index}
+          style={{
+            background: "#0f172a",
+            padding: "16px",
+            borderRadius: "8px",
+            border: "1px solid #334155"
+          }}
+        >
+          <img src={p.image} alt={p.name} style={{ width: "100%", borderRadius: "6px", marginBottom: "12px", objectFit: "cover", height: "120px" }} />
+          <h3 style={{ color: "white", margin: "0 0 4px 0", fontSize: "16px" }}>{p.name}</h3>
 
-                <button
-                  onClick={() => requestMedicine(p.name, p.desc)}
-                  style={{ ...btnStyle, marginTop: "10px" }}
-                >
-                  Order
-                </button>
-              </div>
-            ))}
+          <p style={{ color: "#94a3b8", fontSize: "12px", margin: "0" }}>
+            {p.desc}
+          </p>
+
+          {/* ✅ QUANTITY INPUT */}
+          <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "600" }}>Qty:</span>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              background: "#020617",
+              borderRadius: "8px",
+              border: "1px solid #334155",
+              overflow: "hidden",
+              flex: 1
+            }}>
+              <button 
+                onClick={() => handleQuantityChange(index, -1)}
+                style={{
+                  background: "transparent", border: "none", borderRight: "1px solid #334155", color: "white", padding: "8px 16px", cursor: "pointer", transition: "background 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#1e293b"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >-</button>
+              <span style={{ color: "white", flex: 1, textAlign: "center", fontWeight: "600", fontSize: "14px" }}>{quantities[index] || 1}</span>
+              <button 
+                onClick={() => handleQuantityChange(index, 1)}
+                style={{
+                  background: "transparent", border: "none", borderLeft: "1px solid #334155", color: "white", padding: "8px 16px", cursor: "pointer", transition: "background 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#1e293b"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >+</button>
+            </div>
           </div>
+
+          {/* ✅ ORDER BUTTON */}
+          <button
+            onClick={async () => {
+              await registerCustomer();
+              await requestMedicine(p.name, p.desc, quantities[index] || 1);
+            }}
+            style={{ ...btnStyle, marginTop: "16px", width: "100%", background: "linear-gradient(135deg, #0d9488, #14b8a6)" }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = 0.9}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
+          >
+            Order Now
+          </button>
         </div>
-      )}
+      ))}
+    </div>
+  </div>
+)}
 
       {/* FILTER BUTTONS */}
-      <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
-        {["all", "in-progress", "completed", "pending"].map((filter) => (
-          <button key={filter} onClick={() => setStatusFilter(filter)}>
-            {filter}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
+        {[
+          { key: "all", label: "ALL PRODUCTS" },
+          { key: "in-progress", label: "IN PROGRESS" },
+          { key: "completed", label: "COMPLETED" },
+          { key: "pending", label: "PENDING" }
+        ].map((filter) => (
+          <button 
+            key={filter.key} 
+            onClick={() => setStatusFilter(filter.key)}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "20px",
+              border: statusFilter === filter.key ? "1px solid #0d9488" : "1px solid #334155",
+              background: statusFilter === filter.key ? "#8b5a6e" : "#0f172a",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => {
+              if (statusFilter !== filter.key) {
+                e.target.style.background = "#1e293b";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (statusFilter !== filter.key) {
+                e.target.style.background = "#0f172a";
+              }
+            }}
+          >
+            {filter.label}
           </button>
         ))}
       </div>
 
       {/* TABLE */}
-      <table style={{ width: "100%", color: "white" }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Stage</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {filteredProducts.map((item) => (
-            <tr key={item.id}>
-              <td>{item.id}</td>
-              <td>{item.name}</td>
-              <td>{getStageName(item.stage)}</td>
-              <td>
-                <ActionButton item={item} role={role} />
-              </td>
+      <div style={{
+        background: "#1e293b",
+        borderRadius: "12px",
+        border: "1px solid #334155",
+        overflow: "hidden"
+      }}>
+        <table style={{ width: "100%", color: "white", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#0f172a", borderBottom: "1px solid #334155" }}>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Product ID</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Name</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Description</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Customer Name</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Quantity</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Stage</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Status</th>
+              <th style={{ padding: "16px", textAlign: "left", color: "#94a3b8", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {filteredProducts.map((item) => {
+              const safeDesc = item.description || "";
+              const parsedDesc = safeDesc.split(" | Qty: ")[0];
+              const parsedQty = safeDesc.includes(" | Qty: ") ? safeDesc.split(" | Qty: ")[1] : (item.quantity || 1);
+              return (
+              <tr key={item.id} onClick={() => setSelectedProduct(item)}style={{ borderBottom: "1px solid #334155", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#0f172a"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                <td style={{ padding: "16px" }}>#{item.id}</td>
+                <td style={{ padding: "16px" }}>{item.name}</td>
+                <td style={{ padding: "16px", color: "#94a3b8", fontSize: "13px" }}>{parsedDesc}</td>
+                <td style={{ padding: "16px", color: "white", fontSize: "13px" }}>{getCustomerName(item.customer)}</td>
+                <td style={{ padding: "16px", color: "white", fontSize: "13px", fontWeight: "600" }}>{parsedQty}</td>
+                <td style={{ padding: "16px" }}>
+                  <span style={{
+                    background: "#0d9488",
+                    color: "white",
+                    padding: "4px 12px",
+                    borderRadius: "12px",
+                    fontSize: "12px",
+                    fontWeight: "600"
+                  }}>
+                    {getStageName(item.stage)}
+                  </span>
+                </td>
+                <td style={{ padding: "16px" }}>
+                  <span style={{
+                    background: "#f59e0b",
+                    color: "white",
+                    padding: "4px 12px",
+                    borderRadius: "12px",
+                    fontSize: "12px",
+                    fontWeight: "600"
+                  }}>
+                    {getStatusLabel(item.stage)}
+                  </span>
+                </td>
+                <td style={{ padding: "16px" }}>
+                  <ActionButton item={item} role={role} />
+                </td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {selectedProduct && (
+  <div style={{
+    marginTop: "30px",
+    background: "#1e293b",
+    padding: "20px",
+    borderRadius: "10px",
+    border: "1px solid #334155"
+  }}>
+    <h3 style={{ color: "white" }}>
+      Product #{selectedProduct.id} Status Timeline
+    </h3>
+
+    {renderTimeline(parseInt(selectedProduct.stage))}
+  </div>
+)}
+      </div>
     </div>
   );
 };
@@ -579,6 +823,20 @@ const getStageName = (stage) => {
     default: return "Unknown";
   }
 };
+
+// 🔥 STATUS LABEL HELPER
+const getStatusLabel = (stage) => {
+  switch (parseInt(stage)) {
+    case 0: return "Pending";
+    case 1: return "Approved";
+    case 2: return "Raw Material Supplied";
+    case 3: return "Manufactured";
+    case 4: return "In Transit";
+    case 5: return "Delivered";
+    case 6: return "Completed";
+    default: return "Waiting";
+  }
+};
   // 🎨 ROLE BADGE
   const getRoleName = () => {
     switch (role) {
@@ -590,6 +848,12 @@ const getStageName = (stage) => {
       default: return "Unknown";
     }
   };
+const getCustomerName = (address) => {
+  if (!address) return "Unknown";
+
+  const name = localStorage.getItem("user_" + address);
+  return name || address.substring(0, 6) + "...";
+};
 
   // ACTION BUTTON COMPONENT
 const ActionButton = ({ item, role }) => {
@@ -624,7 +888,16 @@ if (role === "2") {
   }
 
   // Customer → only view
+  if (role === "5") {
+  if (stage === 5) {
+    return (
+      <button onClick={() => sold(item.id)} style={btn}>
+        Mark Sold
+      </button>
+    );
+  }
   return <span style={disabledStyle}>View Only</span>;
+}
 };
 
   // METRIC CARD COMPONENT
@@ -735,7 +1008,7 @@ if (role === "2") {
       }}>
         <div onClick={() => setActiveTab("products")} style={{ fontSize: "24px", padding: "10px", background: activeTab === "products" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", cursor: "pointer", transition: "all 0.3s", opacity: activeTab === "products" ? 1 : 0.5, title: "Products" }}>P</div>
         <div onClick={() => setActiveTab("analytics")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "analytics" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "analytics" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Analytics" }}>A</div>
-        <div onClick={() => setActiveTab("reports")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "reports" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "reports" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Reports" }}>R</div>
+        <div onClick={() => setActiveTab("history")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "history" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "history" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "History" }}>H</div>
         <div onClick={() => setActiveTab("settings")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "settings" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "settings" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Settings" }}>S</div>
         <div onClick={() => setActiveTab("profile")} style={{ marginTop: "auto", fontSize: "14px", cursor: "pointer", opacity: activeTab === "profile" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "profile" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Profile" }}>U</div>
       </div>
@@ -853,7 +1126,7 @@ if (role === "2") {
           {/* RENDER DIFFERENT VIEWS BASED ON ACTIVE TAB */}
           {activeTab === "products" && <ProductsView />}
           {activeTab === "analytics" && <AnalyticsView />}
-          {activeTab === "reports" && <ReportsView />}
+          {activeTab === "history" && <TransactionHistoryView />}
           {activeTab === "settings" && <SettingsView />}
           {activeTab === "profile" && <ProfileView />}
           
