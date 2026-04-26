@@ -26,10 +26,10 @@ function Login() {
   // 🔥 REGISTER ROLE ON BLOCKCHAIN
   const registerOnBlockchain = async (role) => {
     const web3 = new Web3(window.ethereum);
-    localStorage.setItem("account", accounts[0]);
     await window.ethereum.request({ method: "eth_requestAccounts" });
 
     const accounts = await web3.eth.getAccounts();
+    localStorage.setItem("account", accounts[0]);
 
     const network = SupplyChain.networks["5777"];
 
@@ -45,57 +45,57 @@ function Login() {
 
   // 🔐 SIGNUP
   const handleSignup = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (
-    !signupData.name ||
-    !signupData.email ||
-    !signupData.password ||
-    !signupData.role ||
-    !confirmPassword
-  ) {
-    alert("Please fill all fields");
-    return;
-  }
+    if (
+      !signupData.name ||
+      !signupData.email ||
+      !signupData.password ||
+      !signupData.role ||
+      !confirmPassword
+    ) {
+      alert("Please fill all fields");
+      return;
+    }
 
-  if (signupData.password !== confirmPassword) {
-    alert("Passwords do not match ❌");
-    return;
-  }
+    if (signupData.password !== confirmPassword) {
+      alert("Passwords do not match ❌");
+      return;
+    }
 
-  try {
-    // 🔥 BACKEND CALL
-    const res = await fetch("http://localhost:5000/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(signupData),
-    });
+    try {
+      // 🔥 BACKEND CALL
+      const res = await fetch("http://localhost:5000/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(signupData),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-if (!res.ok) {
-  alert(data.message); // 🔥 shows real error
-  return;
-}
+      if (!res.ok) {
+        alert(data.message); // 🔥 shows real error
+        return;
+      }
 
-    // 🔥 BLOCKCHAIN CALL
-    await registerOnBlockchain(parseInt(signupData.role));
+      // 🔥 BLOCKCHAIN CALL
+      await registerOnBlockchain(parseInt(signupData.role));
 
-    localStorage.setItem("role", signupData.role);
-    localStorage.setItem("username", signupData.name);
-localStorage.setItem("email", signupData.email);
-    alert("Signup Successful ✅");
-    toggle(true);
+      localStorage.setItem("role", signupData.role);
+      localStorage.setItem("username", signupData.name);
+      localStorage.setItem("email", signupData.email);
+      alert("Signup Successful ✅");
+      toggle(true);
 
-  } catch (err) {
-    console.log("ERROR:", err);
-    alert("Signup failed ❌ Check console");
-  }
-};
+    } catch (err) {
+      console.log("ERROR:", err);
+      alert("Signup failed ❌ Check console");
+    }
+  };
 
-  // 🔐 LOGIN
+  // 🔐 UNIFIED LOGIN (Email + Automatic Wallet Connection)
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -107,24 +107,50 @@ localStorage.setItem("email", signupData.email);
     try {
       const res = await fetch("http://localhost:5000/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginData),
       });
 
       const data = await res.json();
 
       if (data.role) {
-  localStorage.setItem("role", data.role);
+        let walletAddress = "";
 
-  // 🔥 ADD THESE 2 LINES
-  localStorage.setItem("email", loginData.email);
-  localStorage.setItem("username", data.name || "User");
+        // 🔥 AUTOMATIC WALLET CONNECTION & LINKING
+        try {
+          if (window.ethereum) {
+            const web3 = new Web3(window.ethereum);
+            await window.ethereum.request({ method: "eth_requestAccounts" });
+            const accounts = await web3.eth.getAccounts();
+            walletAddress = accounts[0];
 
-  alert("Login Successful ✅");
-  navigate("/dashboard");
+            // Implicitly link
+            localStorage.setItem(`wallet_${walletAddress.toLowerCase()}`, loginData.email);
+            localStorage.setItem("walletAddress", walletAddress);
+            localStorage.setItem("account", walletAddress);
+          } else {
+            console.warn("MetaMask not installed.");
+            alert("MetaMask not found. You are logged in locally, but blockchain features won't work.");
+          }
+        } catch (err) {
+          console.error("Wallet connection skipped/failed:", err);
+          if (err.code === 4001) {
+            alert("Wallet connection rejected. You are logged in locally, but blockchain features won't work.");
+          }
+        }
 
+        // Set common session variables
+        localStorage.setItem("role", data.role);
+        localStorage.setItem("email", loginData.email);
+        localStorage.setItem("username", data.name || "User");
+        localStorage.setItem("authType", walletAddress ? "wallet" : "email");
+
+        // Save for potential future usage
+        localStorage.setItem(`role_${loginData.email}`, data.role);
+        localStorage.setItem(`name_${loginData.email}`, data.name || "User");
+
+        alert("Login Successful ✅");
+        navigate("/dashboard");
       } else {
         alert("Invalid credentials ❌");
       }
@@ -135,13 +161,13 @@ localStorage.setItem("email", signupData.email);
   };
 
   return (
-    <div style={{ 
-      display: "flex", 
-      minHeight: "100vh", 
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
       background: "#0f172a",
       fontFamily: "'Sanchez', serif"
     }}>
-      
+
       {/* LEFT SECTION - FORM */}
       <div style={{
         flex: 1,
@@ -152,219 +178,47 @@ localStorage.setItem("email", signupData.email);
         padding: "60px 40px",
         background: "#0f172a",
         position: "relative",
-        zIndex: signIn ? 5 : 3
+        zIndex: 5
       }}>
         <div style={{
           width: "100%",
           maxWidth: "400px"
         }}>
           {/* TOGGLE INDICATOR */}
-          <div style={{
-            textAlign: "center",
-            marginBottom: "40px",
-            color: "#94a3b8",
-            fontSize: "13px",
-            fontWeight: "600",
-            textTransform: "uppercase",
-            letterSpacing: "1px"
-          }}>
+          <div style={{ textAlign: "center", marginBottom: "40px", color: "#94a3b8", fontSize: "13px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "1px" }}>
             {signIn ? "Welcome Back" : "New Member"}
           </div>
 
-          {/* TITLE */}
-          <h1 style={{
-            fontFamily: "'League Spartan', sans-serif",
-            fontSize: "36px",
-            fontWeight: "900",
-            margin: "0 0 12px 0",
-            color: "white",
-            letterSpacing: "-0.8px",
-            textTransform: "uppercase"
-          }}>
+          <h1 style={{ fontFamily: "'League Spartan', sans-serif", fontSize: "36px", fontWeight: "900", margin: "0 0 12px 0", color: "white", letterSpacing: "-0.8px", textTransform: "uppercase" }}>
             {signIn ? "Hello Again!" : "Create Account"}
           </h1>
 
+          <form onSubmit={signIn ? handleLogin : handleSignup} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-
-          {/* FORM */}
-          <form onSubmit={signIn ? handleLogin : (e) => { e.preventDefault(); handleSignup(e); }} style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "16px"
-          }}>
-            
-            {/* NAME FIELD (SIGNUP ONLY) */}
             {!signIn && (
               <div>
-                <input
-                  placeholder="Full Name"
-                  value={signupData.name}
-                  onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "14px 16px",
-                    background: "#1e293b",
-                    border: "1.5px solid #334155",
-                    borderRadius: "12px",
-                    color: "white",
-                    fontSize: "15px",
-                    fontFamily: "'Sanchez', serif",
-                    boxSizing: "border-box",
-                    transition: "all 0.3s ease"
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = "#0d9488"}
-                  onBlur={(e) => e.target.style.borderColor = "#334155"}
-                />
+                <input placeholder="Full Name" value={signupData.name} onChange={(e) => setSignupData({ ...signupData, name: e.target.value })} style={{ width: "100%", padding: "14px 16px", background: "#1e293b", border: "1.5px solid #334155", borderRadius: "12px", color: "white", fontSize: "15px", fontFamily: "'Sanchez', serif", boxSizing: "border-box" }} />
               </div>
             )}
 
-            {/* EMAIL FIELD */}
             <div>
-              <input
-                placeholder="Email"
-                type="email"
-                value={signIn ? loginData.email : signupData.email}
-                onChange={(e) => 
-                  signIn 
-                    ? setLoginData({ ...loginData, email: e.target.value })
-                    : setSignupData({ ...signupData, email: e.target.value })
-                }
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  background: "#1e293b",
-                  border: "1.5px solid #334155",
-                  borderRadius: "12px",
-                  color: "white",
-                  fontSize: "15px",
-                  fontFamily: "'Sanchez', serif",
-                  boxSizing: "border-box",
-                  transition: "all 0.3s ease"
-                }}
-                onFocus={(e) => e.target.style.borderColor = "#0d9488"}
-                onBlur={(e) => e.target.style.borderColor = "#334155"}
-              />
+              <input placeholder="Email" type="email" value={signIn ? loginData.email : signupData.email} onChange={(e) => signIn ? setLoginData({ ...loginData, email: e.target.value }) : setSignupData({ ...signupData, email: e.target.value })} style={{ width: "100%", padding: "14px 16px", background: "#1e293b", border: "1.5px solid #334155", borderRadius: "12px", color: "white", fontSize: "15px", fontFamily: "'Sanchez', serif", boxSizing: "border-box" }} />
             </div>
 
-            {/* PASSWORD FIELD */}
             <div style={{ position: "relative" }}>
-              <input
-                placeholder="Password"
-                type={showPassword ? "text" : "password"}
-                value={signIn ? loginData.password : signupData.password}
-                onChange={(e) => 
-                  signIn 
-                    ? setLoginData({ ...loginData, password: e.target.value })
-                    : setSignupData({ ...signupData, password: e.target.value })
-                }
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  paddingRight: "45px",
-                  background: "#1e293b",
-                  border: "1.5px solid #334155",
-                  borderRadius: "12px",
-                  color: "white",
-                  fontSize: "15px",
-                  fontFamily: "'Sanchez', serif",
-                  boxSizing: "border-box",
-                  transition: "all 0.3s ease"
-                }}
-                onFocus={(e) => e.target.style.borderColor = "#0d9488"}
-                onBlur={(e) => e.target.style.borderColor = "#334155"}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "16px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  color: "#0d9488",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  padding: "4px 8px",
-                  transition: "color 0.3s"
-                }}
-                onMouseEnter={(e) => e.target.style.color = "#14b8a6"}
-                onMouseLeave={(e) => e.target.style.color = "#0d9488"}
-              >
-                {showPassword ? "HIDE" : "SHOW"}
-              </button>
+              <input placeholder="Password" type={showPassword ? "text" : "password"} value={signIn ? loginData.password : signupData.password} onChange={(e) => signIn ? setLoginData({ ...loginData, password: e.target.value }) : setSignupData({ ...signupData, password: e.target.value })} style={{ width: "100%", padding: "14px 16px", paddingRight: "45px", background: "#1e293b", border: "1.5px solid #334155", borderRadius: "12px", color: "white", fontSize: "15px", fontFamily: "'Sanchez', serif", boxSizing: "border-box" }} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#0d9488", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>{showPassword ? "HIDE" : "SHOW"}</button>
             </div>
 
-            {/* CONFIRM PASSWORD (SIGNUP ONLY) */}
             {!signIn && (
               <div style={{ position: "relative" }}>
-                <input
-                  placeholder="Confirm Password"
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "14px 16px",
-                    paddingRight: "45px",
-                    background: "#1e293b",
-                    border: "1.5px solid #334155",
-                    borderRadius: "12px",
-                    color: "white",
-                    fontSize: "15px",
-                    fontFamily: "'Sanchez', serif",
-                    boxSizing: "border-box",
-                    transition: "all 0.3s ease"
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = "#0d9488"}
-                  onBlur={(e) => e.target.style.borderColor = "#334155"}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={{
-                    position: "absolute",
-                    right: "16px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "#0d9488",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    padding: "4px 8px",
-                    transition: "color 0.3s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.color = "#14b8a6"}
-                  onMouseLeave={(e) => e.target.style.color = "#0d9488"}
-                >
-                  {showConfirmPassword ? "HIDE" : "SHOW"}
-                </button>
+                <input placeholder="Confirm Password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ width: "100%", padding: "14px 16px", paddingRight: "45px", background: "#1e293b", border: "1.5px solid #334155", borderRadius: "12px", color: "white", fontSize: "15px", fontFamily: "'Sanchez', serif", boxSizing: "border-box" }} />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#0d9488", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>{showConfirmPassword ? "HIDE" : "SHOW"}</button>
               </div>
             )}
 
-            {/* ROLE SELECT (SIGNUP ONLY) */}
             {!signIn && (
-              <select
-                value={signupData.role}
-                onChange={(e) => setSignupData({ ...signupData, role: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  background: "#1e293b",
-                  border: "1.5px solid #334155",
-                  borderRadius: "12px",
-                  color: "white",
-                  fontSize: "15px",
-                  fontFamily: "'Sanchez', serif",
-                  boxSizing: "border-box",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease"
-                }}
-              >
+              <select value={signupData.role} onChange={(e) => setSignupData({ ...signupData, role: e.target.value })} style={{ width: "100%", padding: "14px 16px", background: "#1e293b", border: "1.5px solid #334155", borderRadius: "12px", color: "white", fontSize: "15px", fontFamily: "'Sanchez', serif", boxSizing: "border-box", cursor: "pointer" }}>
                 <option value="">Select Your Role</option>
                 <option value="1">Supplier</option>
                 <option value="2">Manufacturer</option>
@@ -374,82 +228,26 @@ localStorage.setItem("email", signupData.email);
               </select>
             )}
 
-            {/* FORGOT PASSWORD / RECOVERY (LOGIN ONLY) */}
             {signIn && (
-              <div style={{
-                textAlign: "right",
-                marginTop: "4px"
-              }}>
-                <a href="#recover" style={{
-                  color: "#0d9488",
-                  fontSize: "13px",
-                  textDecoration: "none",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "color 0.3s"
-                }} onMouseEnter={(e) => e.target.style.color = "#14b8a6"} onMouseLeave={(e) => e.target.style.color = "#0d9488"}>
-                  Recovery Password
-                </a>
+              <div style={{ textAlign: "right", marginTop: "4px" }}>
+                <a href="#recover" style={{ color: "#0d9488", fontSize: "13px", textDecoration: "none", fontWeight: "600", cursor: "pointer" }}>Recovery Password</a>
               </div>
             )}
 
-            {/* SUBMIT BUTTON */}
-            <button
-              type="submit"
-              style={{
-                padding: "14px 20px",
-                background: "#8b5a6e",
-                color: "white",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "15px",
-                fontWeight: "700",
-                fontFamily: "'League Spartan', sans-serif",
-                cursor: "pointer",
-                margin: "8px 0 16px 0",
-                textTransform: "uppercase",
-                letterSpacing: "-0.4px",
-                transition: "all 0.3s ease"
-              }}
-              onMouseEnter={(e) => e.target.style.background = "#9d6a7e"}
-              onMouseLeave={(e) => e.target.style.background = "#8b5a6e"}
-            >
-              {signIn ? "Sign in" : "Sign Up"}
+            <button type="submit" style={{ padding: "14px 20px", background: "#8b5a6e", color: "white", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "700", fontFamily: "'League Spartan', sans-serif", cursor: "pointer", margin: "8px 0 16px 0", textTransform: "uppercase" }}>
+              {signIn ? "Sign in & Connect Wallet" : "Sign Up"}
             </button>
           </form>
 
-          {/* DIVIDER */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            margin: "24px 0"
-          }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "24px 0" }}>
             <div style={{ flex: 1, height: "1px", background: "#334155" }}></div>
-            <span style={{ color: "#64748b", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Or continue with</span>
+            <span style={{ color: "#64748b", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Or</span>
             <div style={{ flex: 1, height: "1px", background: "#334155" }}></div>
           </div>
 
-          
-          {/* TOGGLE TO SIGNUP/LOGIN */}
-          <div style={{
-            textAlign: "center",
-            color: "#94a3b8",
-            fontSize: "14px"
-          }}>
+          <div style={{ textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
             {signIn ? "Don't have an account? " : "Already have an account? "}
-            <button
-              onClick={() => toggle(!signIn)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#0d9488",
-                cursor: "pointer",
-                fontWeight: "700",
-                fontSize: "14px",
-                textDecoration: "underline"
-              }}
-            >
+            <button onClick={() => toggle(!signIn)} style={{ background: "none", border: "none", color: "#0d9488", cursor: "pointer", fontWeight: "700", fontSize: "14px", textDecoration: "underline" }}>
               {signIn ? "Sign Up" : "Sign In"}
             </button>
           </div>
@@ -468,93 +266,59 @@ localStorage.setItem("email", signupData.email);
         position: "relative",
         overflow: "hidden"
       }}>
-        {/* GRADIENT OVERLAY SHAPES */}
+        {/* Decorative Grid */}
         <div style={{
           position: "absolute",
-          width: "300px",
-          height: "300px",
-          background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)",
-          borderRadius: "50%",
-          top: "-100px",
-          left: "-100px",
-          zIndex: 1
-        }}></div>
-        
-        <div style={{
-          position: "absolute",
-          width: "400px",
-          height: "400px",
-          background: "radial-gradient(circle, rgba(0,0,0,0.15) 0%, transparent 70%)",
-          borderRadius: "50%",
-          bottom: "-150px",
-          right: "-150px",
-          zIndex: 1
-        }}></div>
+          inset: 0,
+          background: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+          transform: "perspective(1000px) rotateX(60deg) scale(2.5)",
+          transformOrigin: "top center",
+          opacity: 0.5
+        }} />
 
-        {/* ILLUSTRATION IMAGE */}
-        <div style={{
-          position: "relative",
-          zIndex: 2,
-          textAlign: "center",
-          color: "white",
-          maxWidth: "400px",
-          width: "100%"
-        }}>
-          <img 
-            src={require("./scm.png")} 
-            alt="Supply Chain Illustration"
-            style={{
-              width: "100%",
-              maxWidth: "400px",
-              height: "auto",
-              borderRadius: "20px",
-              marginBottom: "24px",
-              objectFit: "cover",
-              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)"
-            }} 
-          />
+        <div style={{ position: "relative", zIndex: 10, textAlign: "center" }}>
+          <div style={{
+            width: "280px",
+            height: "280px",
+            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+            borderRadius: "50%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            margin: "0 auto 40px auto",
+            border: "1px solid #334155",
+            boxShadow: "0 0 80px rgba(13, 148, 136, 0.15)"
+          }}>
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+
           <h2 style={{
             fontFamily: "'League Spartan', sans-serif",
             fontSize: "32px",
             fontWeight: "900",
-            margin: "0 0 12px 0",
-            textTransform: "uppercase",
-            letterSpacing: "-0.6px"
+            color: "white",
+            margin: "0 0 16px 0",
+            letterSpacing: "-0.5px"
           }}>
-            Supply Chain Simplified
+            ChainTrack
           </h2>
           <p style={{
-            color: "rgba(255, 255, 255, 0.9)",
-            fontSize: "15px",
+            color: "#94a3b8",
+            fontSize: "16px",
+            lineHeight: "1.6",
             maxWidth: "300px",
-            lineHeight: "1.6"
+            margin: "0 auto"
           }}>
-            Track your products with confidence and ease
+            Secure, transparent, and efficient blockchain tracking for your global inventory.
           </p>
         </div>
-
-        {/* DECORATIVE ELEMENTS */}
-        <div style={{
-          position: "absolute",
-          bottom: "40px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          gap: "8px",
-          zIndex: 2
-        }}>
-          {[1, 2, 3].map((dot) => (
-            <div key={dot} style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: dot === 1 ? "rgba(255, 255, 255, 0.8)" : "rgba(255, 255, 255, 0.3)",
-              cursor: "pointer",
-              transition: "all 0.3s"
-            }} onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.8)"} onMouseLeave={(e) => e.target.style.background = dot === 1 ? "rgba(255, 255, 255, 0.8)" : "rgba(255, 255, 255, 0.3)"}></div>
-          ))}
-        </div>
       </div>
+
     </div>
   );
 }
