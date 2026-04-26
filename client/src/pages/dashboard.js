@@ -9,6 +9,24 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
+
+// IMAGE IMPORTS
+import paracetamolImg from "./photos/paracetamol.png";
+import crocinImg from "./photos/crocin.jpg";
+import azithromycinImg from "./photos/Azithromycin.webp";
+import vitaminCImg from "./photos/Vitamin C.webp";
+import ibuprofenImg from "./photos/ibuprofen.jpg";
+import amoxicillinImg from "./photos/Amoxicillin.jpg";
+import cetirizineImg from "./photos/Cetirizine.jpg";
+import omeprazoleImg from "./photos/Omeprazole.webp";
+import metforminImg from "./photos/metformin.webp";
+import amlodipineImg from "./photos/amlopin.webp";
+import aspirinImg from "./photos/aspirin.jpg";
+import vitaminD3Img from "./photos/Vitamin D3.webp";
+import coughSyrupImg from "./photos/coughsyrup.webp";
+import bComplexImg from "./photos/b-complex.jpg";
+import antacidGelImg from "./photos/antacid.webp";
+import eyeDropsImg from "./photos/fresheye-eye-drops.avif";
 console.log("ABI CHECK:", SupplyChain.abi);
 function Dashboard() {
   const [account, setAccount] = useState("");
@@ -40,11 +58,15 @@ function Dashboard() {
     { id: 3, message: "Delivery completed", time: "1 day ago" }
   ]);
   const approveMedicine = async (id) => {
-    await contract.methods.approveMedicine(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.approveMedicine(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("approveMedicine error:", err);
+    }
   };
   const role = localStorage.getItem("role");
-  // 🔥 REAL ANALYTICS
+  // REAL ANALYTICS
 
   const totalTransactions = products.reduce(
     (sum, p) => sum + parseInt(p.stage),
@@ -96,45 +118,52 @@ function Dashboard() {
     }
   }, [desc]);
 
+
+
   const loadBlockchain = async () => {
-    if (!window.ethereum) {
-      alert("Install MetaMask");
-      return;
+    try {
+      if (!window.ethereum) {
+        alert("Install MetaMask");
+        return;
+      }
+
+      const web3 = new Web3(window.ethereum);
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+
+      const accounts = await web3.eth.getAccounts();
+      const currentAccount = accounts[0];
+      setAccount(currentAccount);
+
+      // Prevent overwriting the name of an existing wallet if the user forgets to switch MetaMask accounts
+      const existingRole = localStorage.getItem("role");
+      if (existingRole === "5") {
+        // If logging in as Customer, strictly bind the current wallet as Customer
+        localStorage.setItem("user_" + currentAccount, username);
+      } else if (!localStorage.getItem("user_" + currentAccount)) {
+        localStorage.setItem("user_" + currentAccount, username);
+      }
+
+      const networkId = await web3.eth.net.getId();
+      const network = SupplyChain.networks[networkId];
+
+      if (!network) {
+        alert("Contract not deployed on this network. Please switch to Ganache (5777).");
+        return;
+      }
+
+      const instance = new web3.eth.Contract(
+        SupplyChain.abi,
+        network.address
+      );
+
+      setContract(instance);
+
+      // PASS ACCOUNT DIRECTLY (IMPORTANT)
+      loadProducts(instance, currentAccount);
+    } catch (err) {
+      console.error("loadBlockchain error:", err);
+      // alert("Error connecting to blockchain. Check console.");
     }
-
-    const web3 = new Web3(window.ethereum);
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-
-    const accounts = await web3.eth.getAccounts();
-    const currentAccount = accounts[0];
-    setAccount(currentAccount);
-    
-    // 🔥 Prevent overwriting the name of an existing wallet if the user forgets to switch MetaMask accounts
-    const existingRole = localStorage.getItem("role");
-    if (existingRole === "5") {
-      // If logging in as Customer, strictly bind the current wallet as Customer
-      localStorage.setItem("user_" + currentAccount, username);
-    } else if (!localStorage.getItem("user_" + currentAccount)) {
-      localStorage.setItem("user_" + currentAccount, username);
-    }
-
-    const networkId = await web3.eth.net.getId();
-    const network = SupplyChain.networks[networkId];
-
-    if (!network) {
-      alert("Contract not deployed on this network");
-      return;
-    }
-
-    const instance = new web3.eth.Contract(
-      SupplyChain.abi,
-      network.address
-    );
-
-    setContract(instance);
-
-    // ✅ PASS ACCOUNT DIRECTLY (IMPORTANT)
-    loadProducts(instance, currentAccount);
   };
 
   const [isEditing, setIsEditing] = useState(false);
@@ -152,15 +181,20 @@ function Dashboard() {
       try {
         let data = await instance.methods.MedicineStock(i).call();
 
-        if (parseInt(data.id) > 0) {
-          items.push(data);
+        if (data.id && data.id.toString() !== "0") {
+          // Convert BigInt values to strings/numbers for safe rendering in React
+          items.push({
+            ...data,
+            id: data.id.toString(),
+            stage: data.stage.toString()
+          });
         }
 
         // Add a small delay to prevent "RPC endpoint returned too many errors"
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
 
       } catch (e) {
-        console.error("Error at ID:", i, e);
+        console.error("Error fetching product at ID:", i, e);
       }
     }
 
@@ -182,65 +216,90 @@ function Dashboard() {
     setProducts(filtered);
   };
 
-  // 🔥 ACTIONS
+  // ACTIONS
   const requestMedicine = async (name, desc, qty = 1) => {
-    const fullDesc = `${desc} | Qty: ${qty}`;
-    await contract.methods.requestMedicine(name, fullDesc).send({ from: account });
-    loadProducts(contract, account);
-
+    try {
+      if (!contract) return alert("Contract not loaded");
+      const fullDesc = `${desc} | Qty: ${qty}`;
+      await contract.methods.requestMedicine(name, fullDesc).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("requestMedicine error:", err);
+    }
   };
   const registerCustomer = async () => {
     try {
       await contract.methods.registerRole(5).send({ from: account });
-      console.log("✅ Registered as Customer");
+      console.log("Registered as Customer");
     } catch (err) {
-      console.error("❌ Role error:", err);
+      console.error("Role error:", err);
     }
   };
 
   const RMSsupply = async (id) => {
-    await contract.methods.RMSsupply(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.RMSsupply(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("RMSsupply error:", err);
+    }
   };
 
   const Manufacturing = async (id) => {
-    await contract.methods.Manufacturing(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.Manufacturing(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("Manufacturing error:", err);
+    }
   };
 
   const Distribute = async (id) => {
-    await contract.methods.Distribute(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.Distribute(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("Distribute error:", err);
+    }
   };
 
   const Retail = async (id) => {
-    await contract.methods.Retail(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.Retail(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("Retail error:", err);
+    }
   };
+
   const sold = async (id) => {
-    await contract.methods.sold(id).send({ from: account });
-    loadProducts(contract, account);
+    try {
+      await contract.methods.sold(id).send({ from: account });
+      loadProducts(contract, account);
+    } catch (err) {
+      console.error("sold error:", err);
+    }
   };
-  // 🔓 LOGOUT HANDLER
+  // LOGOUT HANDLER
   const handleLogout = () => {
     localStorage.removeItem("role");
     window.location.href = "/";
   };
 
-  // 📊 ANALYTICS VIEW
+  // ANALYTICS VIEW
   const AnalyticsView = () => (
     <div>
       <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Analytics Dashboard</h1>
       <p style={{ margin: "0 0 24px 0", color: "#94a3b8", fontSize: "14px" }}>Track supply chain metrics and performance</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "40px" }}>
-        <MetricCard title="Total Transactions" value={totalTransactions} icon="💳" growth="Live" />
+        <MetricCard title="Total Transactions" value={totalTransactions} icon="" growth="Live" />
 
-        <MetricCard title="In Progress" value={inProgressCount} icon="⏳" growth="Live" />
+        <MetricCard title="In Progress" value={inProgressCount} icon="" growth="Live" />
 
-        <MetricCard title="Delivered Products" value={deliveredCount} icon="📦" growth="Live" />
+        <MetricCard title="Delivered Products" value={deliveredCount} icon="" growth="Live" />
 
-        <MetricCard title="Success Rate" value={`${successRate}%`} icon="✅" growth="Live" isText={true} />
+        <MetricCard title="Success Rate" value={`${successRate}%`} icon="" growth="Live" isText={true} />
       </div>
 
       <div style={{
@@ -266,10 +325,18 @@ function Dashboard() {
     </div>
   );
 
-  // 📜 TRANSACTION HISTORY VIEW
+  // TRANSACTION HISTORY VIEW
   const TransactionHistoryView = () => {
     // Sort products by ID descending (newest first)
-    const sortedProducts = [...products].sort((a, b) => parseInt(b.id) - parseInt(a.id));
+    const sortedProducts = [...products]
+      .filter(item => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return (item.name && item.name.toLowerCase().includes(q)) || 
+               (item.description && item.description.toLowerCase().includes(q)) || 
+               (item.id && item.id.toString().includes(q));
+      })
+      .sort((a, b) => parseInt(b.id) - parseInt(a.id));
 
     return (
       <div>
@@ -319,7 +386,7 @@ function Dashboard() {
                         </span>
                       </div>
                       <p style={{ margin: "0", color: "#94a3b8", fontSize: "13px" }}>
-                        {parsedDesc} • Qty: {parsedQty}
+                        {parsedDesc} | Qty: {parsedQty}
                       </p>
                       {/* Show customer info for roles that are not 5 */}
                       {role !== "5" && (
@@ -352,7 +419,7 @@ function Dashboard() {
     );
   };
 
-  // ⚙️ SETTINGS VIEW
+  // SETTINGS VIEW
   const SettingsView = () => (
     <div>
       <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>
@@ -446,7 +513,7 @@ function Dashboard() {
       </div>
     </div>
   );
-  // 👤 PROFILE VIEW
+  // PROFILE VIEW
   const ProfileView = () => (
     <div>
       <h1 style={{ margin: "0 0 8px 0", color: "white", fontSize: "32px", fontWeight: "700" }}>Profile</h1>
@@ -460,8 +527,8 @@ function Dashboard() {
         marginBottom: "24px",
         textAlign: "center"
       }}>
-        <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "40px" }}>
-          👤
+        <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "40px", fontWeight: "700", boxShadow: "0 4px 12px rgba(13, 148, 136, 0.3)" }}>
+          {username ? username.charAt(0).toUpperCase() : "U"}
         </div>
         <h2 style={{ margin: "0 0 4px 0", color: "white", fontSize: "20px", fontWeight: "700" }}></h2>
         {isEditing ? (
@@ -556,31 +623,39 @@ function Dashboard() {
     </div>
   );
 
-  // 📦 PRODUCTS VIEW (default)
+  // PRODUCTS VIEW (default)
 
   const ProductsView = () => {
 
     const availableProducts = [
-      { name: "Paracetamol", desc: "Fever & pain relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Paracetamol" },
-      { name: "Crocin", desc: "Cold & fever medicine", image: "https://placehold.co/400x300/1e293b/0d9488?text=Crocin" },
-      { name: "Azithromycin", desc: "Antibiotic", image: "https://placehold.co/400x300/1e293b/0d9488?text=Azithromycin" },
-      { name: "Vitamin C", desc: "Immunity booster", image: "https://placehold.co/400x300/1e293b/0d9488?text=Vitamin+C" },
-      { name: "Ibuprofen", desc: "Anti-inflammatory", image: "https://placehold.co/400x300/1e293b/0d9488?text=Ibuprofen" },
-      { name: "Amoxicillin", desc: "Bacterial infection", image: "https://placehold.co/400x300/1e293b/0d9488?text=Amoxicillin" },
-      { name: "Cetirizine", desc: "Allergy relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Cetirizine" },
-      { name: "Omeprazole", desc: "Acid reflux medication", image: "https://placehold.co/400x300/1e293b/0d9488?text=Omeprazole" },
-      { name: "Metformin", desc: "Diabetes management", image: "https://placehold.co/400x300/1e293b/0d9488?text=Metformin" },
-      { name: "Amlodipine", desc: "Blood pressure medicine", image: "https://placehold.co/400x300/1e293b/0d9488?text=Amlodipine" },
-      { name: "Aspirin", desc: "Pain & blood thinner", image: "https://placehold.co/400x300/1e293b/0d9488?text=Aspirin" },
-      { name: "Vitamin D3", desc: "Bone health", image: "https://placehold.co/400x300/1e293b/0d9488?text=Vitamin+D3" },
-      { name: "Cough Syrup", desc: "Dry cough relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Cough+Syrup" },
-      { name: "B-Complex", desc: "Energy metabolism", image: "https://placehold.co/400x300/1e293b/0d9488?text=B-Complex" },
-      { name: "Antacid Gel", desc: "Stomach relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Antacid+Gel" },
-      { name: "Eye Drops", desc: "Dry eye relief", image: "https://placehold.co/400x300/1e293b/0d9488?text=Eye+Drops" }
+      { name: "Paracetamol", desc: "Fever & pain relief", image: paracetamolImg },
+      { name: "Crocin", desc: "Cold & fever medicine", image: crocinImg },
+      { name: "Azithromycin", desc: "Antibiotic", image: azithromycinImg },
+      { name: "Vitamin C", desc: "Immunity booster", image: vitaminCImg },
+      { name: "Ibuprofen", desc: "Anti-inflammatory", image: ibuprofenImg },
+      { name: "Amoxicillin", desc: "Bacterial infection", image: amoxicillinImg },
+      { name: "Cetirizine", desc: "Allergy relief", image: cetirizineImg },
+      { name: "Omeprazole", desc: "Acid reflux medication", image: omeprazoleImg },
+      { name: "Metformin", desc: "Diabetes management", image: metforminImg },
+      { name: "Amlodipine", desc: "Blood pressure medicine", image: amlodipineImg },
+      { name: "Aspirin", desc: "Pain & blood thinner", image: aspirinImg },
+      { name: "Vitamin D3", desc: "Bone health", image: vitaminD3Img },
+      { name: "Cough Syrup", desc: "Dry cough relief", image: coughSyrupImg },
+      { name: "B-Complex", desc: "Energy metabolism", image: bComplexImg },
+      { name: "Antacid Gel", desc: "Stomach relief", image: antacidGelImg },
+      { name: "Eye Drops", desc: "Dry eye relief", image: eyeDropsImg }
     ];
 
     const filteredProducts = products.filter((item) => {
       const stage = parseInt(item.stage);
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = item.name && item.name.toLowerCase().includes(q);
+        const matchesDesc = item.description && item.description.toLowerCase().includes(q);
+        const matchesId = item.id && item.id.toString().includes(q);
+        if (!matchesName && !matchesDesc && !matchesId) return false;
+      }
 
       if (statusFilter === "all") return true;
       if (statusFilter === "completed") return stage === 6;
@@ -599,13 +674,13 @@ function Dashboard() {
 
         {/* METRIC CARDS */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "40px" }}>
-          <MetricCard title="Total Products" value={products.length} icon="📦" growth="+12% vs last month" />
-          <MetricCard title="In Transit" value={inProgressCount} icon="🚚" growth="-8% vs last month" />
-          <MetricCard title="Delivered" value={deliveredCount} icon="✅" growth="+24% vs last month" />
-          <MetricCard title="Your Role" value={getRoleName()} icon="👤" growth="Active" isText={true} />
+          <MetricCard title="Total Products" value={products.length} icon="" growth="+12% vs last month" />
+          <MetricCard title="In Transit" value={inProgressCount} icon="" growth="-8% vs last month" />
+          <MetricCard title="Delivered" value={deliveredCount} icon="" growth="+24% vs last month" />
+          <MetricCard title="Your Role" value={getRoleName()} icon="" growth="Active" isText={true} />
         </div>
 
-        {/* 🔥 CUSTOMER PRODUCT SELECTION */}
+        {/* CUSTOMER PRODUCT SELECTION */}
         {role === "5" && (
           <div
             style={{
@@ -627,7 +702,7 @@ function Dashboard() {
                 gap: "16px"
               }}
             >
-              {availableProducts.map((p, index) => (
+              {availableProducts.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.desc.toLowerCase().includes(searchQuery.toLowerCase())).map((p, index) => (
                 <div
                   key={index}
                   style={{
@@ -644,7 +719,7 @@ function Dashboard() {
                     {p.desc}
                   </p>
 
-                  {/* ✅ QUANTITY INPUT */}
+                  {/* QUANTITY INPUT */}
                   <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px" }}>
                     <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "600" }}>Qty:</span>
                     <div style={{
@@ -676,7 +751,7 @@ function Dashboard() {
                     </div>
                   </div>
 
-                  {/* ✅ ORDER BUTTON */}
+                  {/* ORDER BUTTON */}
                   <button
                     onClick={async () => {
                       await registerCustomer();
@@ -818,7 +893,7 @@ function Dashboard() {
       </div>
     );
   };
-  // 🔥 STAGE NAME HELPER
+  // STAGE NAME HELPER
   const getStageName = (stage) => {
     switch (parseInt(stage)) {
       case 0: return "Requested";
@@ -832,7 +907,7 @@ function Dashboard() {
     }
   };
 
-  // 🔥 STATUS LABEL HELPER
+  // STATUS LABEL HELPER
   const getStatusLabel = (stage) => {
     switch (parseInt(stage)) {
       case 0: return "Pending";
@@ -845,7 +920,7 @@ function Dashboard() {
       default: return "Waiting";
     }
   };
-  // 🎨 ROLE BADGE
+  // ROLE BADGE
   const getRoleName = () => {
     switch (role) {
       case "1": return "Supplier";
@@ -867,14 +942,13 @@ function Dashboard() {
   const ActionButton = ({ item, role }) => {
     const stage = parseInt(item.stage);
 
-    // Supplier → only when stage = 0
+    // Supplier: only when stage = 0
     if (role === "1") {
       if (stage !== 1) return <span style={disabledStyle}>Waiting</span>;
       return <button onClick={() => RMSsupply(item.id)} style={btn}>Supply</button>;
     }
 
-    // Manufacturer → only when stage = 1
-    // Manufacturer
+    // Manufacturer: only when stage = 1
     if (role === "2") {
       if (stage === 0) {
         return <button onClick={() => approveMedicine(item.id)} style={btn}>Approve</button>;
@@ -883,19 +957,19 @@ function Dashboard() {
       return <button onClick={() => Manufacturing(item.id)} style={btn}>Manufacture</button>;
     }
 
-    // Distributor → only when stage = 3 (Manufactured)
+    // Distributor: only when stage = 3 (Manufactured)
     if (role === "3") {
       if (stage !== 3) return <span style={disabledStyle}>Waiting</span>;
       return <button onClick={() => Distribute(item.id)} style={btn}>Distributed</button>;
     }
 
-    // Retailer → only when stage = 4 (In Transit/Distributed)
+    // Retailer: only when stage = 4 (In Transit/Distributed)
     if (role === "4") {
       if (stage !== 4) return <span style={disabledStyle}>Waiting</span>;
       return <button onClick={() => Retail(item.id)} style={btn}>Sold</button>;
     }
 
-    // Customer → only view
+    // Customer: only view
     if (role === "5") {
       if (stage === 5) {
         return (
@@ -943,16 +1017,16 @@ function Dashboard() {
     </div>
   );
 
-  // 📦 STAGE TIMELINE
+  // STAGE TIMELINE
   const renderTimeline = (stage) => {
     const stages = [
-      { name: "Requested", icon: "📝" },
-      { name: "Approved", icon: "✅" },
-      { name: "Raw Material", icon: "📦" },
-      { name: "Manufactured", icon: "🏭" },
-      { name: "Distributed", icon: "🚚" },
-      { name: "Retail", icon: "🏪" },
-      { name: "Sold", icon: "🎉" }
+      { name: "Requested", icon: "" },
+      { name: "Approved", icon: "" },
+      { name: "Raw Material", icon: "" },
+      { name: "Manufactured", icon: "" },
+      { name: "Distributed", icon: "" },
+      { name: "Retail", icon: "" },
+      { name: "Sold", icon: "" }
     ];
 
     return (
@@ -1014,11 +1088,11 @@ function Dashboard() {
         padding: "20px 0",
         gap: "20px"
       }}>
-        <div onClick={() => setActiveTab("products")} style={{ fontSize: "24px", padding: "10px", background: activeTab === "products" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", cursor: "pointer", transition: "all 0.3s", opacity: activeTab === "products" ? 1 : 0.5, title: "Products" }}>P</div>
-        <div onClick={() => setActiveTab("analytics")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "analytics" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "analytics" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Analytics" }}>A</div>
-        <div onClick={() => setActiveTab("history")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "history" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "history" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "History" }}>H</div>
-        <div onClick={() => setActiveTab("settings")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "settings" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "settings" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Settings" }}>S</div>
-        <div onClick={() => setActiveTab("profile")} style={{ marginTop: "auto", fontSize: "14px", cursor: "pointer", opacity: activeTab === "profile" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "profile" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700", title: "Profile" }}>U</div>
+        <div onClick={() => setActiveTab("products")} style={{ fontSize: "24px", padding: "10px", background: activeTab === "products" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", cursor: "pointer", transition: "all 0.3s", opacity: activeTab === "products" ? 1 : 0.5 }}>P</div>
+        <div onClick={() => setActiveTab("analytics")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "analytics" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "analytics" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700" }}>A</div>
+        <div onClick={() => setActiveTab("history")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "history" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "history" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700" }}>H</div>
+        <div onClick={() => setActiveTab("settings")} style={{ fontSize: "14px", cursor: "pointer", opacity: activeTab === "settings" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "settings" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700" }}>S</div>
+        <div onClick={() => setActiveTab("profile")} style={{ marginTop: "auto", fontSize: "14px", cursor: "pointer", opacity: activeTab === "profile" ? 1 : 0.5, transition: "all 0.3s", padding: "10px", background: activeTab === "profile" ? "#8b5a6e" : "transparent", borderRadius: "10px", color: "white", fontWeight: "700" }}>U</div>
       </div>
 
       {/* MAIN CONTENT */}
@@ -1052,45 +1126,11 @@ function Dashboard() {
             />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "24px", position: "relative" }}>
-            {/* NOTIFICATIONS */}
-            <div style={{ cursor: "pointer", fontSize: "20px", position: "relative" }} onClick={() => setShowNotifications(!showNotifications)}>
-              🔔
-              {notifications.length > 0 && <span style={{ position: "absolute", top: "-8px", right: "-8px", background: "#dc2626", color: "white", borderRadius: "50%", width: "20px", height: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "bold" }}>{notifications.length}</span>}
-            </div>
-
-            {/* NOTIFICATIONS DROPDOWN */}
-            {showNotifications && (
-              <div style={{
-                position: "absolute",
-                top: "70px",
-                right: "60px",
-                background: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "12px",
-                width: "300px",
-                maxHeight: "400px",
-                overflow: "auto",
-                zIndex: 1000,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.3)"
-              }}>
-                <div style={{ padding: "12px", borderBottom: "1px solid #334155" }}>
-                  <h3 style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "700" }}>Notifications</h3>
-                </div>
-                {notifications.map((notif) => (
-                  <div key={notif.id} style={{ padding: "12px", borderBottom: "1px solid #334155", cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#0f172a"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                    <p style={{ margin: "0", color: "white", fontSize: "13px" }}>{notif.message}</p>
-                    <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "11px" }}>{notif.time}</p>
-                  </div>
-                ))}
-                <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #334155" }}>
-                  <button style={{ background: "transparent", border: "none", color: "#0d9488", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>View All Notifications →</button>
-                </div>
-              </div>
-            )}
-
             {/* PROFILE MENU */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", position: "relative" }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "18px" }}>👤</div>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #0d9488, #14b8a6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "18px", fontWeight: "700", boxShadow: "0 2px 8px rgba(13, 148, 136, 0.3)" }}>
+                {username ? username.charAt(0).toUpperCase() : "U"}
+              </div>
               <div>
                 <p style={{ margin: "0", color: "white", fontSize: "14px", fontWeight: "600" }}>
                   {(username?.charAt(0).toUpperCase() + username?.slice(1)) || "User"}
@@ -1189,4 +1229,3 @@ const btn = {
 };
 
 export default Dashboard;
-
